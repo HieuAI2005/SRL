@@ -17,7 +17,7 @@ for continuous action-space environments.
 - **Multi-modal inputs**: state, pixels, lidar, text — all in one model
 - **Vectorised training**: `SyncVectorEnv` and `AsyncVectorEnv` for fast data collection
 - **Goal-conditioned RL**: `GoalEnvWrapper` for gymnasium-robotics Fetch tasks
-- **Isaac Lab support**: massively-parallel GPU environments out of the box
+- **Isaac Lab support**: headless testing and training for PPO, A2C, SAC, and DDPG
 - **ROS 2 Python API**: integrate trained agents into your own ROS 2 code
 - **CLI**: `srl-train --config ... --env ... --algo ...`
 
@@ -60,7 +60,7 @@ pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[all]"
 | Gymnasium MuJoCo | HalfCheetah, Ant, Hopper, Walker2d, Humanoid, Swimmer, Pusher, Reacher | PPO / SAC |
 | Gymnasium Robotics | FetchReach, FetchPush, FetchPickAndPlace, FetchSlide | SAC |
 | racecar_gym | SingleAgentAustria, SingleAgentBerlin, SingleAgentMontreal, SingleAgentTorino | PPO |
-| Isaac Lab | Cartpole, Ant, Humanoid | PPO |
+| Isaac Lab | Cartpole, Ant, Humanoid | PPO / A2C / SAC / DDPG |
 
 ---
 
@@ -102,5 +102,10 @@ srl-train --config configs/envs/halfcheetah_sac.yaml \
           --env HalfCheetah-v5 \
           --algo sac \
           --steps 1000000 \
-          --device cuda
+          --device cuda \
+          --log-interval 5000 \
+          --episode-window 25 \
+          --plot-metrics train/score_mean,sac/critic_loss
 ```
+
+Each run writes compact terminal summaries during training and stores `summary.json`, `history.csv`, `metrics.jsonl`, and `training_curves.svg` in the run directory. Use `--no-plots`, `--plot-metrics`, `--log-interval`, `--episode-window`, and `--console-metrics` to customize the logging layout and exported curves.

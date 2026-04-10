@@ -7,7 +7,7 @@ This page walks you through the full workflow in ~30 lines of code.
 ## 1. Install
 
 ```bash
-pip install "srl-rl[mujoco]"
+pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[mujoco]"
 ```
 
 ---
@@ -48,8 +48,13 @@ critic:
 srl-train --config configs/envs/halfcheetah_sac.yaml \
           --env HalfCheetah-v5 \
           --algo sac \
-          --steps 1000000
+          --steps 1000000 \
+          --log-interval 5000 \
+          --episode-window 25 \
+          --plot-metrics train/score_mean,sac/critic_loss
 ```
+
+The CLI prints compact training summaries to the terminal and writes `summary.json`, `history.csv`, `metrics.jsonl`, and `training_curves.svg` into the selected run directory. Use `--no-plots`, `--plot-metrics`, `--log-interval`, `--episode-window`, and `--console-metrics` to customize the output.
 
 ---
 

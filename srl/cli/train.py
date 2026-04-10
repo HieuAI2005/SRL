@@ -46,6 +46,11 @@ Examples
     p.add_argument("--seed",    type=int, default=0,           help="Random seed (default: 0)")
     p.add_argument("--logdir",  default="runs",                help="TensorBoard log dir (default: runs/)")
     p.add_argument("--ckptdir", default="checkpoints",         help="Checkpoint directory (default: checkpoints/)")
+    p.add_argument("--log-interval", type=int, default=2048,    help="Console/logging interval in env steps")
+    p.add_argument("--episode-window", type=int, default=20,    help="Rolling window for episode summaries")
+    p.add_argument("--console-metrics", type=int, default=8,    help="Maximum metrics shown in compact terminal summaries")
+    p.add_argument("--plot-metrics", default="",               help="Comma-separated metric tags to visualize after training")
+    p.add_argument("--no-plots", action="store_true",          help="Disable plot export at the end of training")
     p.add_argument("--eval-freq", type=int, default=50_000,    help="Evaluation frequency in steps")
     p.add_argument("--eval-episodes", type=int, default=10,    help="Episodes per evaluation")
     p.add_argument("--render",  action="store_true",           help="Render environment during eval")
@@ -98,21 +103,42 @@ def main(argv: list[str] | None = None) -> int:
         return _make_cli_env(args.env, device, args.n_envs)
 
     print(f"[srl-train] Creating {args.n_envs} × {args.env}")
-    if algo_name in ("sac", "ddpg") or args.n_envs == 1:
+    uses_internal_vectorization = args.env.startswith("isaaclab:")
+    if uses_internal_vectorization or algo_name in ("sac", "ddpg") or args.n_envs == 1:
         env = _make_env()
     else:
         env = SyncVectorEnv([lambda i=i: _make_env(i) for i in range(args.n_envs)])
 
     # ── build agent ───────────────────────────────────────────────────────────
-    from srl.utils.logger import Logger
+    from srl.utils.logger import Logger, LoggerConfig
     from srl.utils.checkpoint import CheckpointManager
-    from srl.utils.callbacks import LogCallback, CheckpointCallback
+    from srl.utils.callbacks import CheckpointCallback
 
     run_name = f"{algo_name}_{os.path.splitext(os.path.basename(args.config))[0]}"
-    logger = Logger(log_dir=os.path.join(args.logdir, run_name), verbose=True)
+    plot_metrics = [metric.strip() for metric in args.plot_metrics.split(",") if metric.strip()]
+    logger = Logger(
+        log_dir=os.path.join(args.logdir, run_name),
+        verbose=True,
+        config=LoggerConfig(
+            console_interval=args.log_interval,
+            episode_window=args.episode_window,
+            enable_plots=not args.no_plots,
+            plot_metrics=plot_metrics or None,
+            max_console_metrics=args.console_metrics,
+        ),
+    )
+    logger.set_metadata(
+        algorithm=algo_name,
+        env=args.env,
+        config=args.config,
+        device=device,
+        total_steps=args.steps,
+        seed=args.seed,
+        n_envs=args.n_envs,
+    )
+    logger.configure_env(getattr(env, "num_envs", args.n_envs))
     cm = CheckpointManager(os.path.join(args.ckptdir, run_name), max_keep=5)
     callbacks = [
-        LogCallback(logger, log_interval=2048),
         CheckpointCallback(cm, save_interval=100_000),
     ]
 
@@ -139,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
         agent.train(
             total_timesteps=args.steps,
             env_fn=partial(_make_cli_env, args.env, device, args.n_envs),
+            logger=logger,
+            log_interval=args.log_interval,
         )
 
     elif algo_name == "sac":
@@ -160,6 +188,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     cm.save(model, step=args.steps, tag="final")
+    logger.set_step(args.steps)
     logger.close()
     env.close()
     print("[srl-train] Done.")
@@ -186,6 +215,44 @@ def _remap_obs_to_encoders(obs_dict: dict, encoder_names: list[str]) -> dict:
     return obs_dict
 
 
+def _obs_to_tensors(obs_dict: dict, device, *, force_batch: bool) -> dict:
+    import torch, numpy as np
+
+    tensor_obs = {}
+    for key, value in obs_dict.items():
+        arr = np.asarray(value)
+        if force_batch and (arr.ndim == 0 or not (arr.ndim > 1 and arr.shape[0] >= 1)):
+            arr = np.expand_dims(arr, axis=0)
+        tensor_obs[key] = torch.from_numpy(arr).float().to(device)
+    return tensor_obs
+
+
+def _split_vector_transition(obs: dict, next_obs: dict, action, reward, done, trunc) -> list[tuple[dict, dict, object, float, bool]]:
+    import numpy as np
+
+    rewards = np.asarray(reward, dtype=np.float32).reshape(-1)
+    dones = np.asarray(done, dtype=bool).reshape(-1)
+    truncs = np.asarray(trunc, dtype=bool).reshape(-1)
+    actions = np.asarray(action)
+    if actions.ndim == 1:
+        actions = np.expand_dims(actions, axis=0)
+
+    transitions = []
+    for index in range(len(rewards)):
+        obs_i = {k: np.asarray(v)[index] for k, v in obs.items()}
+        next_obs_i = {k: np.asarray(v)[index] for k, v in next_obs.items()}
+        transitions.append(
+            (
+                obs_i,
+                next_obs_i,
+                np.asarray(actions[index], dtype=np.float32),
+                float(rewards[index]),
+                bool(dones[index] or truncs[index]),
+            )
+        )
+    return transitions
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Training loops
 # ──────────────────────────────────────────────────────────────────────────────
@@ -202,11 +269,11 @@ def _run_on_policy(agent, env, args, callbacks, logger) -> None:
     while step < args.steps:
         for _ in range(n_steps):
             obs_remapped = _remap_obs_to_encoders(obs, encoder_names)
-            obs_t = {k: torch.from_numpy(np.asarray(v)).float().to(agent.device)
-                     for k, v in obs_remapped.items()}
+            obs_t = _obs_to_tensors(obs_remapped, agent.device, force_batch=False)
             action, log_prob, value, _ = agent.predict(obs_t)
             action_np = action.cpu().numpy()
-            next_obs, reward, done, trunc, _ = env.step(action_np)
+            next_obs, reward, done, trunc, info = env.step(action_np)
+            logger.update_episodes(reward, done, trunc, step=step, info=info)
             agent.buffer.add(
                 obs=obs, action=action_np, reward=np.asarray(reward),
                 done=np.asarray(done),
@@ -217,14 +284,14 @@ def _run_on_policy(agent, env, args, callbacks, logger) -> None:
             step += getattr(agent.cfg, "num_envs", 1)
 
         obs_remapped_final = _remap_obs_to_encoders(obs, encoder_names)
-        last_t = {k: torch.from_numpy(np.asarray(v)).float().to(agent.device)
-                  for k, v in obs_remapped_final.items()}
+        last_t = _obs_to_tensors(obs_remapped_final, agent.device, force_batch=False)
         _, _, last_val, _ = agent.predict(last_t)
         agent.buffer.compute_returns_and_advantages(
             last_value=last_val.cpu().numpy() if last_val is not None else 0.0
         )
         metrics = agent.update()
-        metrics["step"] = step
+        logger.set_step(step)
+        logger.record_metrics(metrics, step=step, total_steps=args.steps)
         for cb in callbacks:
             cb.on_step_end(step, metrics)
 
@@ -235,31 +302,53 @@ def _run_off_policy(agent, env, args, callbacks, logger) -> None:
     warmup = getattr(agent.cfg, "learning_starts", 10_000)
     obs, _ = env.reset()
     encoder_names = list(agent.model.encoders.keys())
+    vectorized_env = args.env.startswith("isaaclab:") or getattr(env, "num_envs", 1) > 1
 
     for step in range(args.steps):
         obs_remapped = _remap_obs_to_encoders(obs, encoder_names)
-        obs_t = {k: torch.from_numpy(np.asarray(v)).float().unsqueeze(0).to(agent.device)
-                 for k, v in obs_remapped.items()}
+        obs_t = _obs_to_tensors(obs_remapped, agent.device, force_batch=not vectorized_env)
         if step < warmup:
             action_np = env.act_space.sample()
         else:
             action, _, _, _ = agent.predict(obs_t)
-            action_np = action.squeeze(0).cpu().numpy()
+            action_np = action.cpu().numpy()
+            if not vectorized_env and action_np.ndim > 1 and action_np.shape[0] == 1:
+                action_np = action_np.squeeze(0)
 
-        next_obs, reward, done, trunc, _ = env.step(action_np)
-        agent.buffer.add(
-            obs=obs, action=action_np,
-            reward=np.array([reward], dtype=np.float32),
-            done=np.array([done], dtype=bool),
-            next_obs=next_obs,
-        )
+        next_obs, reward, done, trunc, info = env.step(action_np)
+        logger.update_episodes(reward, done, trunc, step=step + 1, info=info)
+        if vectorized_env:
+            for obs_i, next_obs_i, action_i, reward_i, done_i in _split_vector_transition(
+                obs,
+                next_obs,
+                action_np,
+                reward,
+                done,
+                trunc,
+            ):
+                agent.buffer.add(
+                    obs=obs_i,
+                    action=action_i,
+                    reward=np.array([reward_i], dtype=np.float32),
+                    done=np.array([done_i], dtype=bool),
+                    next_obs=next_obs_i,
+                )
+        else:
+            agent.buffer.add(
+                obs=obs, action=action_np,
+                reward=np.array([reward], dtype=np.float32),
+                done=np.array([done], dtype=bool),
+                next_obs=next_obs,
+            )
         obs = next_obs
-        if done or trunc:
+        if not vectorized_env and (done or trunc):
             obs, _ = env.reset()
 
         if step >= warmup:
             metrics = agent.update()
             if metrics:
+                logger.set_step(step + 1)
+                logger.record_metrics(metrics, step=step + 1, total_steps=args.steps)
                 for cb in callbacks:
                     cb.on_step_end(step, metrics)
 

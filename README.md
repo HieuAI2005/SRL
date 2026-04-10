@@ -40,8 +40,19 @@ srl-train --config configs/envs/pendulum_ppo.yaml \
           --env Pendulum-v1 \
           --algo ppo \
           --steps 100000 \
-          --device cpu
+          --device cpu \
+          --log-interval 4096 \
+          --episode-window 20 \
+          --plot-metrics train/score_mean,ppo/total
 ```
+
+Training runs now export:
+
+- compact terminal summaries with score, rolling score, episode length, throughput, and algorithm metrics
+- TensorBoard scalars under `runs/...`
+- `summary.json`, `history.csv`, `metrics.jsonl`, and `training_curves.svg` after training
+
+You can disable plot export with `--no-plots` or choose specific curves with `--plot-metrics`.
 
 ## Supported environments
 
@@ -61,6 +72,8 @@ Deep environment and algorithm validation lives in [tests/test_deep_env_algorith
 ```bash
 bash scripts/run_deep_env_tests.sh
 ```
+
+That runner now also executes headless Isaac Lab deep tests for PPO, A2C, SAC, and DDPG when `tests/IsaacLab` is available.
 
 ## Documentation
 

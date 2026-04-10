@@ -18,5 +18,6 @@ cd "$ROOT_DIR"
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "$PYTHON_BIN" -m pytest tests/test_deep_env_algorithms.py -v
 
 if [[ -x "$ROOT_DIR/tests/IsaacLab/isaaclab.sh" ]]; then
-  "$ROOT_DIR/tests/IsaacLab/isaaclab.sh" -p "$ROOT_DIR/tests/test_isaaclab_headless.py"
+  env VIRTUAL_ENV="$TEST_VENV" PATH="$TEST_VENV/bin:$PATH" \
+    "$ROOT_DIR/tests/IsaacLab/isaaclab.sh" -p "$ROOT_DIR/tests/test_isaaclab_headless.py"
 fi

@@ -27,7 +27,10 @@ class LogCallback(BaseCallback):
 
     def on_step_end(self, step: int, info: dict[str, Any]) -> None:
         if step % self.log_interval == 0:
-            self.logger.log_dict(info, step=step)
+            if hasattr(self.logger, "record_metrics"):
+                self.logger.record_metrics(info, step=step)
+            else:
+                self.logger.log_dict(info, step=step)
 
 
 class CheckpointCallback(BaseCallback):
