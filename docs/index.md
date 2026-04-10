@@ -5,6 +5,9 @@
 **SRL** is a modular reinforcement learning library  
 for continuous action-space environments.
 
+> **Install note**: `srl-rl` is not published on PyPI yet. Do not use `pip install srl-rl`.
+> Install from GitHub instead.
+
 ---
 
 ## Features

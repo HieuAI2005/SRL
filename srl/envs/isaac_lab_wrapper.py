@@ -28,6 +28,14 @@ class IsaacLabWrapper:
         self.obs_space = getattr(env, "observation_space", None)
         self.act_space = getattr(env, "action_space", None)
 
+    @property
+    def device(self):
+        if hasattr(self.env, "device"):
+            return self.env.device
+        if hasattr(self.env, "unwrapped") and hasattr(self.env.unwrapped, "device"):
+            return self.env.unwrapped.device
+        raise AttributeError("Isaac Lab environment does not expose a device attribute")
+
     def reset(self, **kwargs):
         out = self.env.reset(**kwargs)
         # Isaac Lab returns (obs_dict, extras) or obs_dict
@@ -41,7 +49,7 @@ class IsaacLabWrapper:
         import torch  # local import — optional dep
 
         if isinstance(actions, np.ndarray):
-            actions = torch.from_numpy(actions).to(self.env.device)
+            actions = torch.from_numpy(actions).to(self.device)
 
         out = self.env.step(actions)
         # Returns (obs, reward, terminated, truncated, info) in newer Isaac Lab
