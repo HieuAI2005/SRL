@@ -1,0 +1,35 @@
+# SAC on a continuous-control task (e.g. Ant-v4)
+# Separate encoder paths for actor and critic (standard SAC setup)
+
+encoders:
+  - name: state_enc
+    type: mlp
+    input_dim: 27          # Ant obs dim
+    latent_dim: 256
+    layers:
+      - {out_features: 256, activation: relu, norm: layer_norm}
+      - {out_features: 256, activation: relu, norm: layer_norm}
+
+flows:
+  - "state_enc -> actor"
+  - "state_enc -> critic"
+
+actor:
+  name: actor
+  type: squashed_gaussian
+  action_dim: 8
+  log_std_min: -5.0
+  log_std_max: 2.0
+
+critic:
+  name: critic
+  type: twin_q
+  action_dim: 8
+
+losses:
+  - name: sac_q
+    weight: 1.0
+  - name: sac_policy
+    weight: 1.0
+  - name: sac_temperature
+    weight: 1.0

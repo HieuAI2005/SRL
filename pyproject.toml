@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "srl-rl"
+version = "0.1.0"
+description = "Simple Reinforcement Learning Library — continuous action spaces, multi-modal, config-driven"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "Tran Dang An", email = "bigkatoan@gmail.com" }]
+keywords = ["reinforcement-learning", "deep-learning", "ppo", "sac", "ddpg", "gymnasium", "isaaclab", "ros2"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "torch>=2.0.0",
+    "numpy>=1.24.0",
+    "gymnasium>=0.29.0",
+    "tensorboard>=2.13.0",
+    "pyyaml>=6.0",
+    "safetensors>=0.4.0",
+]
+
+[project.urls]
+Homepage      = "https://github.com/Bigkatoan/SRL"
+Documentation = "https://bigkatoan.github.io/SRL"
+Repository    = "https://github.com/Bigkatoan/SRL"
+Issues        = "https://github.com/Bigkatoan/SRL/issues"
+Changelog     = "https://github.com/Bigkatoan/SRL/releases"
+
+[project.optional-dependencies]
+mujoco = ["gymnasium[mujoco]>=0.29.0", "mujoco>=3.0.0"]
+robotics = ["gymnasium-robotics>=1.2.0"]
+racecar = ["racecar-gym"]
+all = [
+    "gymnasium[mujoco]>=0.29.0",
+    "mujoco>=3.0.0",
+    "gymnasium-robotics>=1.2.0",
+]
+ros2 = []   # rclpy provided by system ROS2 install
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+
+[project.scripts]
+srl-train = "srl.cli.train:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["srl*"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

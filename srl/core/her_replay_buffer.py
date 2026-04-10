@@ -1,0 +1,185 @@
+"""HindsightReplayBuffer — HER (Andrychowicz et al., 2017).
+
+Stores full episodes and re-labels goals using 'future', 'final',
+'episode', or 'random' strategies.  Works as a drop-in replacement for
+ReplayBuffer for goal-conditioned tasks.
+
+Observation dict keys
+---------------------
+obs     : actual observation
+achieved_goal (ag) : goal achieved at this timestep
+desired_goal  (dg) : goal the agent is trying to reach
+
+The reward function is provided externally via *reward_fn(achieved, desired, info)*.
+"""
+
+from __future__ import annotations
+
+from typing import Callable
+
+import numpy as np
+import torch
+
+from srl.core.replay_buffer import ReplayBatch, ReplayBuffer
+
+
+class HERReplayBuffer:
+    """Episode-based buffer with Hindsight Experience Replay.
+
+    Parameters
+    ----------
+    capacity:
+        Maximum number of *transitions* (not episodes) to store.
+    obs_dim, goal_dim, action_dim:
+        Dimensions of observation, goal, and action vectors.
+    reward_fn:
+        ``reward_fn(achieved_goal, desired_goal, info) -> float``
+    strategy:
+        Goal relabelling strategy: ``'future'`` (recommended), ``'final'``,
+        ``'episode'``, or ``'random'``.
+    her_ratio:
+        Fraction of sampled transitions that get HER relabelling.  0.8 means
+        80% relabelled, 20% from original buffer.
+    max_episode_len:
+        Maximum steps per episode (for pre-allocation).
+    """
+
+    def __init__(
+        self,
+        capacity: int,
+        obs_dim: int,
+        goal_dim: int,
+        action_dim: int,
+        reward_fn: Callable,
+        strategy: str = "future",
+        her_ratio: float = 0.8,
+        max_episode_len: int = 1000,
+        gamma: float = 0.99,
+        device: str | torch.device = "cpu",
+    ) -> None:
+        self.capacity = capacity
+        self.obs_dim = obs_dim
+        self.goal_dim = goal_dim
+        self.action_dim = action_dim
+        self.reward_fn = reward_fn
+        self.strategy = strategy
+        self.her_ratio = her_ratio
+        self.max_episode_len = max_episode_len
+        self.gamma = gamma
+        self.device = torch.device(device)
+
+        max_episodes = capacity // max_episode_len + 1
+        self._max_ep = max_episodes
+
+        # Episode storage arrays
+        self._obs = np.zeros((max_episodes, max_episode_len + 1, obs_dim), dtype=np.float32)
+        self._ag = np.zeros((max_episodes, max_episode_len + 1, goal_dim), dtype=np.float32)
+        self._dg = np.zeros((max_episodes, max_episode_len, goal_dim), dtype=np.float32)
+        self._actions = np.zeros((max_episodes, max_episode_len, action_dim), dtype=np.float32)
+        self._ep_len = np.zeros(max_episodes, dtype=np.int32)
+
+        self._ep_ptr = 0
+        self._n_stored = 0
+        self._current_ep: list = []
+
+    # ------------------------------------------------------------------
+    # Episode writing
+    # ------------------------------------------------------------------
+
+    def add_transition(
+        self,
+        obs: np.ndarray,
+        achieved_goal: np.ndarray,
+        desired_goal: np.ndarray,
+        action: np.ndarray,
+        next_obs: np.ndarray,
+        next_achieved_goal: np.ndarray,
+        done: bool,
+    ) -> None:
+        self._current_ep.append(
+            (obs, achieved_goal, desired_goal, action, next_obs, next_achieved_goal, done)
+        )
+        if done or len(self._current_ep) >= self.max_episode_len:
+            self._commit_episode()
+
+    def _commit_episode(self) -> None:
+        ep = self._current_ep
+        T = len(ep)
+        idx = self._ep_ptr
+
+        for t, (o, ag, dg, a, *_) in enumerate(ep):
+            self._obs[idx, t] = o
+            self._ag[idx, t] = ag
+            self._dg[idx, t] = dg
+            self._actions[idx, t] = a
+        # store last obs/ag
+        last_no, last_nag = ep[-1][4], ep[-1][5]
+        self._obs[idx, T] = last_no
+        self._ag[idx, T] = last_nag
+        self._ep_len[idx] = T
+
+        self._ep_ptr = (self._ep_ptr + 1) % self._max_ep
+        self._n_stored = min(self._n_stored + 1, self._max_ep)
+        self._current_ep = []
+
+    # ------------------------------------------------------------------
+    # Sample
+    # ------------------------------------------------------------------
+
+    def sample(self, batch_size: int) -> ReplayBatch:
+        ep_idx = np.random.randint(0, self._n_stored, size=batch_size)
+        t_idx = np.array(
+            [np.random.randint(0, self._ep_len[e]) for e in ep_idx], dtype=np.int32
+        )
+
+        n_her = int(batch_size * self.her_ratio)
+        her_mask = np.zeros(batch_size, dtype=bool)
+        her_mask[:n_her] = True
+        np.random.shuffle(her_mask)
+
+        obs = self._obs[ep_idx, t_idx]
+        next_obs = self._obs[ep_idx, t_idx + 1]
+        ag = self._ag[ep_idx, t_idx]
+        next_ag = self._ag[ep_idx, t_idx + 1]
+        dg = self._dg[ep_idx, t_idx].copy()
+        actions = self._actions[ep_idx, t_idx]
+
+        # HER relabelling
+        for i in np.where(her_mask)[0]:
+            ep_len = int(self._ep_len[ep_idx[i]])
+            if self.strategy == "future":
+                future_t = np.random.randint(t_idx[i], ep_len + 1)
+                dg[i] = self._ag[ep_idx[i], future_t]
+            elif self.strategy == "final":
+                dg[i] = self._ag[ep_idx[i], ep_len]
+            elif self.strategy == "episode":
+                rand_t = np.random.randint(0, ep_len + 1)
+                dg[i] = self._ag[ep_idx[i], rand_t]
+            elif self.strategy == "random":
+                rand_ep = np.random.randint(0, self._n_stored)
+                rand_t = np.random.randint(0, self._ep_len[rand_ep] + 1)
+                dg[i] = self._ag[rand_ep, rand_t]
+
+        # Recompute rewards with relabelled goals
+        rewards = np.array(
+            [self.reward_fn(next_ag[i], dg[i], {}) for i in range(batch_size)],
+            dtype=np.float32,
+        )
+        dones = (rewards == 0.0).astype(np.float32)  # sparse: reward 0 = achieved
+
+        def _t(arr):
+            return torch.tensor(arr, dtype=torch.float32, device=self.device)
+
+        full_obs = np.concatenate([obs, dg], axis=-1)
+        full_next_obs = np.concatenate([next_obs, dg], axis=-1)
+
+        return ReplayBatch(
+            observations=_t(full_obs),
+            actions=_t(actions),
+            rewards=_t(rewards),
+            next_observations=_t(full_next_obs),
+            dones=_t(dones),
+        )
+
+    def __len__(self) -> int:
+        return self._n_stored

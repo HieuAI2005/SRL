@@ -1,0 +1,34 @@
+# PPO on a low-dimensional state-based environment (e.g. HalfCheetah-v4)
+
+encoders:
+  - name: state_enc
+    type: mlp
+    input_dim: 17          # HalfCheetah obs dim
+    latent_dim: 256
+    layers:
+      - {out_features: 256, activation: tanh, norm: none}
+      - {out_features: 256, activation: tanh, norm: none}
+
+flows:
+  - "state_enc -> actor"
+  - "state_enc -> critic"
+
+actor:
+  name: actor
+  type: gaussian
+  action_dim: 6
+  layers: []
+  log_std_init: -1.0
+
+critic:
+  name: critic
+  type: value
+  layers: []
+
+losses:
+  - name: policy
+    weight: 1.0
+  - name: value
+    weight: 0.5
+  - name: entropy
+    weight: 0.01

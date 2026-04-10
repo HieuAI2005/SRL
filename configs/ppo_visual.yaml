@@ -1,0 +1,39 @@
+# PPO on a visual environment — CNN encoder with autoencoder auxiliary loss
+
+encoders:
+  - name: visual_enc
+    type: cnn
+    input_shape: [3, 84, 84]
+    latent_dim: 256
+    aux_type: autoencoder
+    layers:
+      - [32, 8, 4, relu]    # [out_channels, kernel, stride, activation]
+      - [64, 4, 2, relu]
+      - [64, 3, 1, relu]
+
+flows:
+  - "visual_enc -> actor"
+  - "visual_enc -> critic"
+
+actor:
+  name: actor
+  type: gaussian
+  action_dim: 4
+  layers: [{out_features: 256, activation: relu}]
+
+critic:
+  name: critic
+  type: value
+  layers: [{out_features: 256, activation: relu}]
+
+losses:
+  - name: policy
+    weight: 1.0
+  - name: value
+    weight: 0.5
+  - name: entropy
+    weight: 0.01
+  - name: reconstruction
+    weight: 0.1
+    schedule: cosine
+    total_steps: 2000000
