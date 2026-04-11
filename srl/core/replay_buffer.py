@@ -230,5 +230,50 @@ class ReplayBuffer:
             indices=indices,
         )
 
+    def state_dict(self) -> dict:
+        state = {
+            "capacity": self.capacity,
+            "obs_shape": self.obs_shape,
+            "action_dim": self.action_dim,
+            "n_envs": self.n_envs,
+            "n_step": self.n_step,
+            "gamma": self.gamma,
+            "storage_dtype": self.storage_dtype,
+            "tensor_dtype": self.tensor_dtype,
+            "dict_obs": self._dict_obs,
+            "initialized": self._initialized,
+            "pos": self._pos,
+            "size": self._size,
+            "obs": self._obs,
+            "next_obs": self._next_obs,
+            "actions": self._actions,
+            "rewards": self._rewards,
+            "dones": self._dones,
+        }
+        if self.n_step > 1:
+            state["nstep_bufs"] = self._nstep_bufs
+        return state
+
+    def load_state_dict(self, state: dict) -> None:
+        self.capacity = int(state["capacity"])
+        self.obs_shape = state.get("obs_shape")
+        self.action_dim = state.get("action_dim")
+        self.n_envs = int(state["n_envs"])
+        self.n_step = int(state["n_step"])
+        self.gamma = float(state["gamma"])
+        self.storage_dtype = state.get("storage_dtype", np.float32)
+        self.tensor_dtype = state.get("tensor_dtype", torch.float32)
+        self._dict_obs = bool(state["dict_obs"])
+        self._initialized = bool(state["initialized"])
+        self._pos = int(state["pos"])
+        self._size = int(state["size"])
+        self._obs = state["obs"]
+        self._next_obs = state["next_obs"]
+        self._actions = state["actions"]
+        self._rewards = state["rewards"]
+        self._dones = state["dones"]
+        if self.n_step > 1:
+            self._nstep_bufs = state.get("nstep_bufs", [[] for _ in range(self.n_envs)])
+
     def __len__(self) -> int:
         return self._size

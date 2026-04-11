@@ -7,7 +7,14 @@ env_type: "flat"
 algo: ppo
 
 encoders:
-  - name: state_enc
+  - name: actor_state_enc
+    type: mlp
+    input_dim: 11
+    latent_dim: 256
+    layers:
+      - {out_features: 256, activation: tanh, norm: none}
+      - {out_features: 256, activation: tanh, norm: none}
+  - name: critic_state_enc
     type: mlp
     input_dim: 11
     latent_dim: 256
@@ -16,19 +23,22 @@ encoders:
       - {out_features: 256, activation: tanh, norm: none}
 
 flows:
-  - "state_enc -> actor"
-  - "state_enc -> critic"
+  - "actor_state_enc -> actor"
+  - "critic_state_enc -> critic"
 
 actor:
   name: actor
   type: gaussian
   action_dim: 3
   log_std_init: -1.0
+  layers:
+    - {out_features: 128, activation: tanh, norm: none}
 
 critic:
   name: critic
   type: value
-  layers: []
+  layers:
+    - {out_features: 128, activation: tanh, norm: none}
 
 losses:
   - {name: policy,  weight: 1.0}

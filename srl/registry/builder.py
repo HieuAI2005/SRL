@@ -129,7 +129,9 @@ class ModelBuilder:
         # 1. Build encoders (shared instances for duplicate names)
         encoder_map: dict[str, Any] = {}
         latent_dims: dict[str, int] = {}
+        encoder_input_names: dict[str, str | None] = {}
         for enc_cfg in cfg.encoders:
+            encoder_input_names[enc_cfg.name] = enc_cfg.input_name
             if enc_cfg.name not in encoder_map:
                 encoder_map[enc_cfg.name] = _build_encoder(enc_cfg)
                 latent_dims[enc_cfg.name] = _get_encoder_latent_dim(enc_cfg)
@@ -189,4 +191,5 @@ class ModelBuilder:
             actor=actor,
             critic=critic,
             aux_modules=aux_encoders if aux_encoders else None,
+            encoder_input_names=encoder_input_names,
         )

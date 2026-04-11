@@ -1,0 +1,11 @@
+pendulum_ppo:
+  eval_score_min: -900
+
+mountain_car_continuous_ppo:
+  eval_score_min: -5
+
+halfcheetah_sac:
+  eval_score_min: -200
+
+halfcheetah_td3:
+  eval_score_min: -200

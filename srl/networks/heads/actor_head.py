@@ -43,15 +43,24 @@ class GaussianActorHead(nn.Module):
         mlp_kw = {k: v for k, v in kw.items() if k in (
             "default_activation", "default_norm", "default_dropout", "norm_order", "weight_init"
         )}
+        log_std_init = float(kw.get("log_std_init", 0.0))
+        log_std_min = float(kw.get("log_std_min", -20.0))
+        log_std_max = float(kw.get("log_std_max", 2.0))
         self.net, hid = build_mlp(layer_configs, input_dim, **mlp_kw)
         self.mean_head = nn.Linear(hid, action_dim)
         if state_dependent_std:
             self.log_std_head: nn.Module = nn.Linear(hid, action_dim)
         else:
             self.log_std_head = None
-            self.log_std_param = nn.Parameter(torch.zeros(action_dim))
+            self.log_std_param = nn.Parameter(torch.full((action_dim,), log_std_init))
         self.state_dependent_std = state_dependent_std
-        self.dist = DiagonalGaussian(action_dim, state_dependent_std=state_dependent_std)
+        self.dist = DiagonalGaussian(
+            action_dim,
+            log_std_init=log_std_init,
+            state_dependent_std=state_dependent_std,
+            log_std_min=log_std_min,
+            log_std_max=log_std_max,
+        )
 
     def forward(self, z: torch.Tensor, deterministic: bool = False, **_) -> dict:
         h = self.net(z)
@@ -89,10 +98,12 @@ class SquashedGaussianActorHead(nn.Module):
         mlp_kw = {k: v for k, v in kw.items() if k in (
             "default_activation", "default_norm", "default_dropout", "norm_order", "weight_init"
         )}
+        log_std_min = float(kw.get("log_std_min", -20.0))
+        log_std_max = float(kw.get("log_std_max", 2.0))
         self.net, hid = build_mlp(layer_configs, input_dim, **mlp_kw)
         self.mean_head = nn.Linear(hid, action_dim)
         self.log_std_head = nn.Linear(hid, action_dim)
-        self.dist = SquashedGaussian(action_dim)
+        self.dist = SquashedGaussian(action_dim, log_std_min=log_std_min, log_std_max=log_std_max)
 
     def forward(self, z: torch.Tensor, deterministic: bool = False, **_) -> dict:
         h = self.net(z)

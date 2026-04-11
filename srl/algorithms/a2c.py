@@ -30,7 +30,7 @@ class A2C(BaseAgent):
             self.model.parameters(),
             lr=self.cfg.lr,
             alpha=0.99,
-            eps=1e-5,
+            eps=self.cfg.rms_prop_eps,
         )
 
         self.buffer = RolloutBuffer(
@@ -110,9 +110,24 @@ class A2C(BaseAgent):
         return {k: sum(v) / len(v) for k, v in metrics_accum.items()}
 
     def save(self, path: str) -> None:
-        torch.save({"model": self.model.state_dict(), "step": self._global_step}, path)
+        torch.save(self.checkpoint_payload(), path)
 
     def load(self, path: str) -> None:
         ckpt = torch.load(path, map_location=self.device, weights_only=False)
-        self.model.load_state_dict(ckpt["model"])
-        self._global_step = ckpt.get("step", 0)
+        self.load_checkpoint_payload(ckpt)
+
+    def checkpoint_payload(self) -> dict[str, object]:
+        return {
+            "model_state": self.model.state_dict(),
+            "optimizer_state": self.optimizer.state_dict(),
+            "algo_step": self._global_step,
+        }
+
+    def load_checkpoint_payload(self, payload: dict[str, object]) -> None:
+        model_state = payload.get("model_state", payload.get("model"))
+        if model_state is not None:
+            self.model.load_state_dict(model_state)
+        optimizer_state = payload.get("optimizer_state")
+        if optimizer_state is not None:
+            self.optimizer.load_state_dict(optimizer_state)
+        self._global_step = int(payload.get("algo_step", payload.get("step", 0)))

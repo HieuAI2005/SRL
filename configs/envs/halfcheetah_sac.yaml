@@ -7,7 +7,14 @@ env_type: "flat"
 algo: sac
 
 encoders:
-  - name: state_enc
+  - name: actor_state_enc
+    type: mlp
+    input_dim: 17
+    latent_dim: 256
+    layers:
+      - {out_features: 256, activation: relu, norm: layer_norm}
+      - {out_features: 256, activation: relu, norm: layer_norm}
+  - name: critic_state_enc
     type: mlp
     input_dim: 17
     latent_dim: 256
@@ -16,8 +23,8 @@ encoders:
       - {out_features: 256, activation: relu, norm: layer_norm}
 
 flows:
-  - "state_enc -> actor"
-  - "state_enc -> critic"
+  - "actor_state_enc -> actor"
+  - "critic_state_enc -> critic"
 
 actor:
   name: actor
@@ -25,19 +32,50 @@ actor:
   action_dim: 6
   log_std_min: -5.0
   log_std_max: 2.0
+  layers:
+    - {out_features: 256, activation: relu, norm: layer_norm}
 
 critic:
   name: critic
   type: twin_q
   action_dim: 6
+  layers:
+    - {out_features: 256, activation: relu, norm: layer_norm}
 
 losses:
   - {name: sac_q,           weight: 1.0}
   - {name: sac_policy,      weight: 1.0}
   - {name: sac_temperature, weight: 1.0}
 
+visualization:
+  save_model_pipeline: false
+  model_pipeline_path: runs/pipelines/halfcheetah_sac_model.png
+  save_training_pipeline: false
+  training_pipeline_path: runs/pipelines/halfcheetah_sac_training.png
+  export_only: false
+  training_pipeline:
+    nodes:
+      - {id: yaml_config, label: "YAML Config", kind: config, details: ["halfcheetah_sac.yaml", "algo=sac"]}
+      - {id: create_env, label: "Create Async Vec Env", kind: env, details: ["HalfCheetah-v5", "n_envs=4"]}
+      - {id: collect, label: "Collect Experience", kind: process, details: ["policy -> env.step"]}
+      - {id: replay_buffer, label: "Replay Buffer", kind: buffer, details: ["batch_size=256"]}
+      - {id: critic_update, label: "Critic Update", kind: update, details: ["double Q backup"]}
+      - {id: actor_update, label: "Actor Update", kind: update, details: ["reparameterized policy"]}
+      - {id: target_sync, label: "Target Sync", kind: update, details: ["tau=0.005"]}
+      - {id: artifacts, label: "Artifacts", kind: artifact, details: ["checkpoints", "plots", "summary"]}
+    edges:
+      - "yaml_config -> create_env"
+      - "yaml_config -> collect"
+      - "create_env -> collect"
+      - "collect -> replay_buffer"
+      - "replay_buffer -> critic_update"
+      - "critic_update -> actor_update"
+      - "actor_update -> target_sync"
+      - "target_sync -> artifacts"
+
 train:
   total_steps: 1_000_000
+  n_envs: 4
   lr_actor: 3e-4
   lr_critic: 3e-4
   lr_alpha: 3e-4
@@ -45,6 +83,11 @@ train:
   batch_size: 256
   gamma: 0.99
   tau: 0.005
-  learning_starts: 10_000
-  train_freq: 1
-  gradient_steps: 1
+  alpha: 0.2
+  auto_entropy_tuning: false
+  start_steps: 10_000
+  update_after: 1_000
+  update_every: 50
+  gradient_steps: 50
+  replay_n_step: 3
+  use_fp16: false

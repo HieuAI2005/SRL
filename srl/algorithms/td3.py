@@ -1,82 +1,34 @@
-"""DDPG (Deep Deterministic Policy Gradient) — off-policy, deterministic."""
+"""TD3 (Twin Delayed DDPG) — off-policy, deterministic continuous control."""
 
 from __future__ import annotations
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from srl.core.base_agent import BaseAgent
-from srl.core.config import DDPGConfig
+from srl.core.config import TD3Config
 from srl.core.replay_buffer import ReplayBuffer
-from srl.losses.rl_losses import ddpg_policy_loss, ddpg_q_loss
+from srl.losses.rl_losses import ddpg_policy_loss, sac_q_loss
 
 
-class OrnsteinUhlenbeckNoise:
-    """OU process for temporally correlated exploration noise."""
-
-    def __init__(self, action_dim: int, mu: float = 0.0, theta: float = 0.15, sigma: float = 0.2):
-        self.mu = mu * torch.ones(action_dim)
-        self.theta = theta
-        self.sigma = sigma
-        self.state: torch.Tensor | None = None
-
-    def reset(self) -> None:
-        self.state = self.mu.clone()
-
-    def sample(self) -> torch.Tensor:
-        if self.state is None:
-            self.state = self.mu.clone()
-        x = self.state
-        dx = self.theta * (self.mu - x) + self.sigma * torch.randn_like(x)
-        self.state = x + dx
-        return self.state
-
-
-class GaussianActionNoise:
-    """Independent Gaussian exploration noise."""
-
-    def __init__(self, action_dim: int, sigma: float = 0.1):
-        self.action_dim = action_dim
-        self.sigma = sigma
-
-    def reset(self) -> None:
-        return None
-
-    def sample(self) -> torch.Tensor:
-        return torch.randn(self.action_dim) * self.sigma
-
-
-class DDPG(BaseAgent):
-    """Deep Deterministic Policy Gradient.
-
-    Parameters
-    ----------
-    model:
-        AgentModel with a DeterministicActorHead and QFunctionHead.
-    target_model:
-        Target network (same architecture).
-    config:
-        DDPGConfig.
-    """
-
+class TD3(BaseAgent):
     def __init__(
         self,
         model: nn.Module,
         target_model: nn.Module,
-        config: DDPGConfig | None = None,
+        config: TD3Config | None = None,
         device: str | torch.device = "cpu",
     ) -> None:
         self.model = model
         self.target_model = target_model
-        self.cfg = config or DDPGConfig()
+        self.cfg = config or TD3Config()
         self._device = torch.device(device)
 
         self.model.to(self.device)
         self.target_model.to(self.device)
         self.target_model.load_state_dict(self.model.state_dict())
-        for p in self.target_model.parameters():
-            p.requires_grad = False
+        for parameter in self.target_model.parameters():
+            parameter.requires_grad = False
 
         actor_encoder_params = _encoder_params_for_head(self.model, "actor")
         critic_encoder_params = _encoder_params_for_head(self.model, "critic")
@@ -89,12 +41,6 @@ class DDPG(BaseAgent):
             lr=self.cfg.lr_critic,
         )
 
-        action_dim = self.cfg.action_dim or 1
-        if self.cfg.action_noise == "ou":
-            self.noise = OrnsteinUhlenbeckNoise(action_dim, sigma=self.cfg.noise_sigma)
-        else:
-            self.noise = GaussianActionNoise(action_dim, sigma=self.cfg.noise_sigma)
-
         self.buffer = ReplayBuffer(
             capacity=self.cfg.buffer_size,
             num_envs=self.cfg.replay_num_envs,
@@ -103,19 +49,17 @@ class DDPG(BaseAgent):
             use_fp16=self.cfg.use_fp16,
         )
         self._global_step = 0
+        self._update_count = 0
 
     def predict(self, obs, hidden=None, deterministic=False):
         self.model.eval()
         with torch.no_grad():
             result = self.model(obs, hidden_states=hidden)
         actor_out = result["actor_out"]
-        if isinstance(actor_out, dict):
-            action = actor_out.get("action")
-        else:
-            action = actor_out
+        action = actor_out.get("action") if isinstance(actor_out, dict) else actor_out
         if not deterministic and action is not None:
-            action = action + self.noise.sample().to(self.device)
-            action = action.clamp(-1.0, 1.0)
+            noise = torch.randn_like(action) * self.cfg.noise_sigma
+            action = (action + noise).clamp(-1.0, 1.0)
         return action, None, None, result["new_hidden"]
 
     def learn(self, total_timesteps: int) -> None:
@@ -125,9 +69,7 @@ class DDPG(BaseAgent):
         if len(self.buffer) < self.cfg.batch_size:
             return {}
 
-        self.model.train()
         batch = self.buffer.sample(self.cfg.batch_size)
-
         obs = {k: v.to(self.device) for k, v in batch.obs.items()}
         next_obs = {k: v.to(self.device) for k, v in batch.next_obs.items()}
         actions = batch.actions.to(self.device)
@@ -135,54 +77,58 @@ class DDPG(BaseAgent):
         dones = batch.dones.to(self.device)
 
         with torch.no_grad():
-            next_actor_out = self.target_model(next_obs)["actor_out"]
-            if isinstance(next_actor_out, dict):
-                next_action = next_actor_out.get("action")
-            else:
-                next_action = next_actor_out
-            next_q_raw = self.target_model(next_obs, action=next_action)["value"]
-            # TwinQHead returns (q1, q2); take min to prevent overestimation
-            if isinstance(next_q_raw, tuple):
-                next_q = torch.min(next_q_raw[0], next_q_raw[1])
-            else:
-                next_q = next_q_raw
-            target_q = rewards.float() + self.cfg.gamma * (1.0 - dones.float()) * next_q
+            target_actor_out = self.target_model(next_obs)["actor_out"]
+            next_action = target_actor_out.get("action") if isinstance(target_actor_out, dict) else target_actor_out
+            target_noise = torch.randn_like(next_action) * self.cfg.policy_noise
+            target_noise = target_noise.clamp(-self.cfg.noise_clip, self.cfg.noise_clip)
+            next_action = (next_action + target_noise).clamp(-1.0, 1.0)
 
-        q_raw = self.model(obs, action=actions)["value"]
-        # TwinQHead: compute loss for both Q networks
-        if isinstance(q_raw, tuple):
-            critic_loss = ddpg_q_loss(q_raw[0], target_q) + ddpg_q_loss(q_raw[1], target_q)
-            q_for_log = q_raw[0]
+            target_q = self.target_model(next_obs, action=next_action)["value"]
+            if isinstance(target_q, tuple):
+                target_q = torch.min(*target_q)
+            backup = rewards + self.cfg.gamma * (1.0 - dones) * target_q
+
+        q_out = self.model(obs, action=actions)["value"]
+        if isinstance(q_out, tuple):
+            q1, q2 = q_out
+            critic_loss = sac_q_loss(q1, q2, backup.detach())
+            q1_mean = q1.mean()
+            q2_mean = q2.mean()
         else:
-            critic_loss = ddpg_q_loss(q_raw, target_q)
-            q_for_log = q_raw
+            critic_loss = torch.nn.functional.mse_loss(q_out, backup.detach())
+            q1_mean = q_out.mean()
+            q2_mean = q_out.mean()
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
 
-        # Actor
-        actor_out = self.model(obs)["actor_out"]
-        if isinstance(actor_out, dict):
-            new_action = actor_out.get("action")
-        else:
-            new_action = actor_out
-        q_actor_raw = self.model(obs, action=new_action)["value"]
-        # For actor loss use Q1 (or mean of twin) — maximise Q
-        q_actor = q_actor_raw[0] if isinstance(q_actor_raw, tuple) else q_actor_raw
-        actor_loss = ddpg_policy_loss(q_actor)
+        actor_loss_value = None
+        if self._update_count % self.cfg.policy_delay == 0:
+            actor_out = self.model(obs)["actor_out"]
+            policy_action = actor_out.get("action") if isinstance(actor_out, dict) else actor_out
+            q_actor = self.model(obs, action=policy_action)["value"]
+            if isinstance(q_actor, tuple):
+                q_actor = q_actor[0]
+            actor_loss = ddpg_policy_loss(q_actor)
+            self.actor_optimizer.zero_grad()
+            actor_loss.backward()
+            self.actor_optimizer.step()
+            _soft_update(self.model, self.target_model, self.cfg.tau)
+            actor_loss_value = actor_loss.item()
 
-        self.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        self.actor_optimizer.step()
-
-        _soft_update(self.model, self.target_model, self.cfg.tau)
         self._global_step += 1
+        self._update_count += 1
 
-        return {
-            "ddpg/critic_loss": critic_loss.item(),
-            "ddpg/actor_loss": actor_loss.item(),
+        metrics = {
+            "td3/critic_loss": critic_loss.item(),
+            "td3/q1_mean": q1_mean.item(),
+            "td3/q2_mean": q2_mean.item(),
+            "td3/target_q_mean": backup.mean().item(),
         }
+        if actor_loss_value is not None:
+            metrics["td3/actor_loss"] = actor_loss_value
+        return metrics
 
     def save(self, path: str) -> None:
         torch.save(self.checkpoint_payload(), path)
@@ -199,6 +145,7 @@ class DDPG(BaseAgent):
             "critic_optimizer_state": self.critic_optimizer.state_dict(),
             "replay_buffer_state": self.buffer.state_dict(),
             "algo_step": self._global_step,
+            "update_count": self._update_count,
         }
 
     def load_checkpoint_payload(self, payload: dict[str, object]) -> None:
@@ -218,9 +165,10 @@ class DDPG(BaseAgent):
         if replay_buffer_state is not None:
             self.buffer.load_state_dict(replay_buffer_state)
         self._global_step = int(payload.get("algo_step", payload.get("step", 0)))
+        self._update_count = int(payload.get("update_count", 0))
 
 
-def _soft_update(src, tgt, tau):
+def _soft_update(src: nn.Module, tgt: nn.Module, tau: float) -> None:
     for sp, tp in zip(src.parameters(), tgt.parameters()):
         tp.data.mul_(1.0 - tau).add_(sp.data * tau)
 

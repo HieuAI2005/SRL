@@ -39,6 +39,7 @@ nav:
   - Getting Started:
     - Installation: installation.md
     - Quick Start: quickstart.md
+    - YAML Core Guide: yaml_core.md
   - Environments:
     - Overview: environments/index.md
     - Classic Control: environments/classic_control.md

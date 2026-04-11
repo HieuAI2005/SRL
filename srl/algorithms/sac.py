@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import torch
 import torch.nn as nn
 
@@ -53,22 +55,42 @@ class SAC(BaseAgent):
         for p in self.target_model.parameters():
             p.requires_grad = False
 
+        actor_encoder_params = _encoder_params_for_head(self.model, "actor")
+        critic_encoder_params = _encoder_params_for_head(self.model, "critic")
         self.actor_optimizer = torch.optim.Adam(
-            self.model.actor.parameters(), lr=self.cfg.lr_actor
+            list(self.model.actor.parameters()) + actor_encoder_params,
+            lr=self.cfg.lr_actor,
         )
         self.critic_optimizer = torch.optim.Adam(
-            self.model.critic.parameters(), lr=self.cfg.lr_critic
+            list(self.model.critic.parameters()) + critic_encoder_params,
+            lr=self.cfg.lr_critic,
         )
 
         # Automatic entropy tuning
-        self.log_alpha = torch.zeros(1, requires_grad=True, device=self._device)
-        self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=self.cfg.lr_alpha)
+        alpha_value = self.cfg.alpha if self.cfg.alpha is not None else self.cfg.init_alpha
+        init_alpha = max(float(alpha_value), 1e-8)
+        self.log_alpha = torch.tensor(
+            [math.log(init_alpha)],
+            requires_grad=self.cfg.auto_entropy_tuning,
+            device=self._device,
+        )
+        self.alpha_optimizer = (
+            torch.optim.Adam([self.log_alpha], lr=self.cfg.lr_alpha)
+            if self.cfg.auto_entropy_tuning
+            else None
+        )
         action_dim = self.cfg.action_dim
-        self.target_entropy: float = -float(action_dim) if action_dim else -1.0
+        if self.cfg.target_entropy == "auto":
+            self.target_entropy = -float(action_dim) if action_dim else -1.0
+        else:
+            self.target_entropy = float(self.cfg.target_entropy)
 
         self.buffer = ReplayBuffer(
             capacity=self.cfg.buffer_size,
-            num_envs=1,
+            num_envs=self.cfg.replay_num_envs,
+            n_step=self.cfg.replay_n_step,
+            gamma=self.cfg.gamma,
+            use_fp16=self.cfg.use_fp16,
         )
 
         self._global_step = 0
@@ -118,7 +140,7 @@ class SAC(BaseAgent):
 
         # --- Critic update ---
         with torch.no_grad():
-            next_result = self.target_model(next_obs)
+            next_result = self.model(next_obs)
             next_actor_out = next_result["actor_out"]
             if isinstance(next_actor_out, dict):
                 next_action = next_actor_out.get("action")
@@ -132,7 +154,7 @@ class SAC(BaseAgent):
             if isinstance(next_q, tuple):
                 next_q = torch.min(*next_q)
             target_q = (
-                rewards + self.cfg.gamma * (1.0 - dones) * (next_q - self.alpha * next_log_prob)
+                rewards + self.cfg.gamma * (1.0 - dones) * (next_q - self.alpha.detach() * next_log_prob)
             )
 
         result = self.model(obs, action=actions)
@@ -168,10 +190,13 @@ class SAC(BaseAgent):
         self.actor_optimizer.step()
 
         # --- Temperature update ---
-        temp_loss = sac_temperature_loss(log_prob.detach(), self.log_alpha, self.target_entropy)
-        self.alpha_optimizer.zero_grad()
-        temp_loss.backward()
-        self.alpha_optimizer.step()
+        if self.alpha_optimizer is not None:
+            temp_loss = sac_temperature_loss(log_prob.detach(), self.log_alpha, self.target_entropy)
+            self.alpha_optimizer.zero_grad()
+            temp_loss.backward()
+            self.alpha_optimizer.step()
+        else:
+            temp_loss = torch.zeros(1, device=self.device)
 
         # --- Soft update target ---
         _soft_update(self.model, self.target_model, self.cfg.tau)
@@ -182,24 +207,65 @@ class SAC(BaseAgent):
             "sac/actor_loss": actor_loss.item(),
             "sac/alpha": self.alpha.item(),
             "sac/temp_loss": temp_loss.item(),
+            "sac/log_prob_mean": log_prob.mean().item(),
+            "sac/q_mean": q_actor.mean().item(),
+            "sac/target_q_mean": target_q.mean().item(),
         }
 
     def save(self, path: str) -> None:
-        torch.save({
-            "model": self.model.state_dict(),
-            "target": self.target_model.state_dict(),
-            "log_alpha": self.log_alpha.data,
-            "step": self._global_step,
-        }, path)
+        torch.save(self.checkpoint_payload(), path)
 
     def load(self, path: str) -> None:
         ckpt = torch.load(path, map_location=self.device, weights_only=False)
-        self.model.load_state_dict(ckpt["model"])
-        self.target_model.load_state_dict(ckpt["target"])
-        self.log_alpha.data = ckpt["log_alpha"]
-        self._global_step = ckpt.get("step", 0)
+        self.load_checkpoint_payload(ckpt)
+
+    def checkpoint_payload(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "model_state": self.model.state_dict(),
+            "target_model_state": self.target_model.state_dict(),
+            "actor_optimizer_state": self.actor_optimizer.state_dict(),
+            "critic_optimizer_state": self.critic_optimizer.state_dict(),
+            "replay_buffer_state": self.buffer.state_dict(),
+            "log_alpha": self.log_alpha.detach().cpu(),
+            "algo_step": self._global_step,
+        }
+        if self.alpha_optimizer is not None:
+            payload["alpha_optimizer_state"] = self.alpha_optimizer.state_dict()
+        return payload
+
+    def load_checkpoint_payload(self, payload: dict[str, object]) -> None:
+        model_state = payload.get("model_state", payload.get("model"))
+        if model_state is not None:
+            self.model.load_state_dict(model_state)
+        target_state = payload.get("target_model_state", payload.get("target"))
+        if target_state is not None:
+            self.target_model.load_state_dict(target_state)
+        actor_optimizer_state = payload.get("actor_optimizer_state")
+        if actor_optimizer_state is not None:
+            self.actor_optimizer.load_state_dict(actor_optimizer_state)
+        critic_optimizer_state = payload.get("critic_optimizer_state")
+        if critic_optimizer_state is not None:
+            self.critic_optimizer.load_state_dict(critic_optimizer_state)
+        alpha_optimizer_state = payload.get("alpha_optimizer_state")
+        if self.alpha_optimizer is not None and alpha_optimizer_state is not None:
+            self.alpha_optimizer.load_state_dict(alpha_optimizer_state)
+        replay_buffer_state = payload.get("replay_buffer_state")
+        if replay_buffer_state is not None:
+            self.buffer.load_state_dict(replay_buffer_state)
+        log_alpha = payload.get("log_alpha")
+        if log_alpha is not None:
+            self.log_alpha.data.copy_(log_alpha.to(self.device))
+        self._global_step = int(payload.get("algo_step", payload.get("step", 0)))
 
 
 def _soft_update(src: nn.Module, tgt: nn.Module, tau: float) -> None:
     for sp, tp in zip(src.parameters(), tgt.parameters()):
         tp.data.mul_(1.0 - tau).add_(sp.data * tau)
+
+
+def _encoder_params_for_head(model: nn.Module, head_name: str) -> list[nn.Parameter]:
+    encoder_names = getattr(model, "encoder_names_for_head")(head_name)
+    params: list[nn.Parameter] = []
+    for encoder_name in encoder_names:
+        params.extend(list(model.encoders[encoder_name].parameters()))
+    return params

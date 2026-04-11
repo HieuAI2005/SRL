@@ -1,4 +1,4 @@
-"""CheckpointManager — save and load model weights using safetensors."""
+"""CheckpointManager — save and load model or agent checkpoints."""
 
 from __future__ import annotations
 
@@ -34,38 +34,28 @@ class CheckpointManager:
 
     def save(
         self,
-        model: nn.Module,
+        model: Any,
         optimizer: torch.optim.Optimizer | None = None,
         step: int = 0,
         metrics: dict[str, Any] | None = None,
         tag: str = "ckpt",
     ) -> Path:
         ckpt_path = self.save_dir / f"{tag}_{step:010d}.pt"
-        payload: dict[str, Any] = {
-            "step": step,
-            "model_state": model.state_dict(),
-            "metrics": metrics or {},
-        }
-        if optimizer is not None:
-            payload["optimizer_state"] = optimizer.state_dict()
+        payload = self._build_payload(model=model, optimizer=optimizer, step=step, metrics=metrics)
 
-        # Try safetensors for model weights
-        try:
-            from safetensors.torch import save_file as st_save
+        if self._can_use_safetensors(model, payload, optimizer):
+            try:
+                from safetensors.torch import save_file as st_save
 
-            st_path = ckpt_path.with_suffix(".safetensors")
-            st_save(model.state_dict(), str(st_path))
-            # Save non-tensor metadata separately
-            meta_path = ckpt_path.with_suffix(".meta.pt")
-            torch.save(
-                {"step": step, "metrics": metrics or {},
-                 "optimizer_state": payload.get("optimizer_state")},
-                meta_path,
-            )
-            self._record(st_path)
-            return st_path
-        except (ImportError, Exception):
-            pass
+                st_path = ckpt_path.with_suffix(".safetensors")
+                st_save(payload["model_state"], str(st_path))
+                meta_path = ckpt_path.with_suffix(".meta.pt")
+                meta_payload = {k: v for k, v in payload.items() if k != "model_state"}
+                torch.save(meta_payload, meta_path)
+                self._record(st_path)
+                return st_path
+            except (ImportError, Exception):
+                pass
 
         torch.save(payload, ckpt_path)
         self._record(ckpt_path)
@@ -77,7 +67,7 @@ class CheckpointManager:
 
     def load(
         self,
-        model: nn.Module,
+        model: Any,
         path: str | Path,
         optimizer: torch.optim.Optimizer | None = None,
         device: str | torch.device = "cpu",
@@ -86,20 +76,17 @@ class CheckpointManager:
         if path.suffix == ".safetensors":
             from safetensors.torch import load_file as st_load
             state = st_load(str(path), device=str(device))
-            model.load_state_dict(state)
 
             meta_path = path.with_suffix(".meta.pt")
+            meta: dict[str, Any] = {}
             if meta_path.exists():
                 meta = torch.load(meta_path, map_location=device, weights_only=False)
-                if optimizer is not None and meta.get("optimizer_state"):
-                    optimizer.load_state_dict(meta["optimizer_state"])
-                return meta
-            return {}
+            payload = {"model_state": state, **meta}
+            self._load_payload(model=model, payload=payload, optimizer=optimizer)
+            return payload
         else:
             payload = torch.load(path, map_location=device, weights_only=False)
-            model.load_state_dict(payload["model_state"])
-            if optimizer is not None and "optimizer_state" in payload:
-                optimizer.load_state_dict(payload["optimizer_state"])
+            self._load_payload(model=model, payload=payload, optimizer=optimizer)
             return payload
 
     def latest(self) -> Path | None:
@@ -126,3 +113,43 @@ class CheckpointManager:
             meta = old.with_suffix(".meta.pt")
             if meta.exists():
                 meta.unlink(missing_ok=True)
+
+    def _build_payload(
+        self,
+        *,
+        model: Any,
+        optimizer: torch.optim.Optimizer | None,
+        step: int,
+        metrics: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        if hasattr(model, "checkpoint_payload"):
+            payload = dict(model.checkpoint_payload())
+        elif isinstance(model, nn.Module):
+            payload = {"model_state": model.state_dict()}
+        else:
+            raise TypeError("CheckpointManager.save expects an nn.Module or object with checkpoint_payload().")
+
+        payload["step"] = step
+        payload["metrics"] = metrics or {}
+        if optimizer is not None:
+            payload["optimizer_state"] = optimizer.state_dict()
+        return payload
+
+    def _load_payload(
+        self,
+        *,
+        model: Any,
+        payload: dict[str, Any],
+        optimizer: torch.optim.Optimizer | None,
+    ) -> None:
+        if hasattr(model, "load_checkpoint_payload"):
+            model.load_checkpoint_payload(payload)
+            return
+        if not isinstance(model, nn.Module):
+            raise TypeError("CheckpointManager.load expects an nn.Module or object with load_checkpoint_payload().")
+        model.load_state_dict(payload["model_state"])
+        if optimizer is not None and "optimizer_state" in payload:
+            optimizer.load_state_dict(payload["optimizer_state"])
+
+    def _can_use_safetensors(self, model: Any, payload: dict[str, Any], optimizer: torch.optim.Optimizer | None) -> bool:
+        return isinstance(model, nn.Module) and optimizer is None and set(payload.keys()) <= {"model_state", "step", "metrics"}

@@ -13,7 +13,7 @@ def _worker(conn, env_fn):
     while True:
         cmd, data = conn.recv()
         if cmd == "reset":
-            obs, info = env.reset()
+            obs, info = env.reset(**(data or {}))
             conn.send((obs, info))
         elif cmd == "step":
             obs, r, done, trunc, info = env.step(data)
@@ -57,8 +57,8 @@ class AsyncVectorEnv:
         _dummy.close()
 
     def reset(self, **kwargs) -> tuple[dict[str, np.ndarray], list[dict]]:
-        for conn in self._parent_conns:
-            conn.send(("reset", None))
+        for index, conn in enumerate(self._parent_conns):
+            conn.send(("reset", _reset_kwargs_for_env(kwargs, index)))
         results = [conn.recv() for conn in self._parent_conns]
         obs_list, info_list = zip(*results)
         return _stack_obs(obs_list), list(info_list)
@@ -88,3 +88,11 @@ class AsyncVectorEnv:
 def _stack_obs(obs_list) -> dict[str, np.ndarray]:
     keys = obs_list[0].keys()
     return {k: np.stack([o[k] for o in obs_list], axis=0) for k in keys}
+
+
+def _reset_kwargs_for_env(kwargs: dict[str, Any], index: int) -> dict[str, Any]:
+    env_kwargs = dict(kwargs)
+    seed = env_kwargs.get("seed")
+    if isinstance(seed, int):
+        env_kwargs["seed"] = seed + index
+    return env_kwargs

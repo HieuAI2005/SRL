@@ -19,6 +19,7 @@ from srl.losses.rl_losses import (
 )
 from srl.utils.checkpoint import CheckpointManager
 from srl.utils.normalizer import RunningNormalizer
+from srl.losses.aux_losses import reconstruction_loss
 
 
 class PPO(BaseAgent):
@@ -46,9 +47,45 @@ class PPO(BaseAgent):
         self._device = torch.device(device)
         self.model.to(self._device)
 
-        self.optimizer = torch.optim.Adam(
-            self.model.parameters(), lr=self.cfg.lr, eps=1e-5
-        )
+        # If a config exposes a separate encoder learning rate (VisualPPOConfig),
+        # create a head-only optimizer (actor+critic) and optionally a separate
+        # encoder/aux optimizer that will be used only for auxiliary losses.
+        if hasattr(self.cfg, "encoder_lr"):
+            head_params = []
+            if getattr(self.model, "actor", None) is not None:
+                head_params += list(self.model.actor.parameters())
+            if getattr(self.model, "critic", None) is not None:
+                head_params += list(self.model.critic.parameters())
+            # Fallback: if no actor/critic present, fall back to all parameters
+            if not head_params:
+                head_params = list(self.model.parameters())
+
+            self.optimizer = torch.optim.Adam(head_params, lr=self.cfg.lr, eps=1e-5)
+            self._head_params = head_params
+
+            # Build encoder/aux optimizer when aux modules exist
+            aux_params: list = []
+            if getattr(self.model, "aux_modules", None):
+                for aux in self.model.aux_modules.values():
+                    aux_params += list(aux.parameters())
+                # Include encoders corresponding to aux modules (names like '<enc>_aux')
+                for aux_name in self.model.aux_modules.keys():
+                    if aux_name.endswith("_aux"):
+                        enc_name = aux_name[:-4]
+                        enc = self.model.encoders.get(enc_name)
+                        if enc is not None:
+                            aux_params += list(enc.parameters())
+            if aux_params:
+                enc_lr = getattr(self.cfg, "encoder_lr", self.cfg.lr)
+                self.encoder_optimizer = torch.optim.Adam(aux_params, lr=enc_lr)
+            else:
+                self.encoder_optimizer = None
+        else:
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=self.cfg.lr, eps=1e-5
+            )
+            self._head_params = list(self.model.parameters())
+            self.encoder_optimizer = None
 
         self.buffer = RolloutBuffer(
             capacity=self.cfg.n_steps,
@@ -109,13 +146,15 @@ class PPO(BaseAgent):
     def update(self) -> dict[str, float]:
         """Run *n_epochs × n_batches* gradient updates on the filled buffer."""
         self.model.train()
-        batch = self.buffer.get_batch()
         metrics_accum: dict[str, list[float]] = {}
+        stop_early = False
 
         for _ in range(self.cfg.n_epochs):
             for mini in self.buffer.get_batches(self.cfg.batch_size):
                 obs = {k: v.to(self.device) for k, v in mini.obs.items()}
-                result = self.model(obs)
+                # Detach encoder latents so policy/value updates do not backpropagate
+                # into encoder parameters (encoders are updated only via aux optimizer).
+                result = self.model(obs, detach_encoders=True)
                 actor_out = result["actor_out"]
 
                 if isinstance(actor_out, dict):
@@ -144,12 +183,17 @@ class PPO(BaseAgent):
                     adv,
                     clip_eps=self.cfg.clip_range,
                 )
+                value_clip = self.cfg.clip_range_vf if self.cfg.clip_range_vf is not None else self.cfg.clip_range
                 val_loss = ppo_value_loss(
                     result["value"].squeeze(-1),
                     mini.returns.to(self.device),
-                    clip_eps=self.cfg.clip_range,
+                    old_values=mini.values.to(self.device),
+                    clip_eps=value_clip,
                 )
                 ent_loss = entropy_loss(ent)
+                with torch.no_grad():
+                    log_ratio = log_prob_eval - mini.log_probs.to(self.device)
+                    approx_kl = ((torch.exp(log_ratio) - 1.0) - log_ratio).mean()
 
                 total, info = self.composer.compute(
                     step=self._global_step,
@@ -157,25 +201,107 @@ class PPO(BaseAgent):
                     value=val_loss,
                     entropy=ent_loss,
                 )
+                info["approx_kl"] = float(approx_kl.item())
 
                 self.optimizer.zero_grad()
                 total.backward()
-                nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.max_grad_norm)
+                # Clip grads only for head params
+                try:
+                    nn.utils.clip_grad_norm_(self._head_params, self.cfg.max_grad_norm)
+                except Exception:
+                    # Fallback to full model params if head list unavailable
+                    nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.max_grad_norm)
                 self.optimizer.step()
 
                 for k, v in info.items():
                     metrics_accum.setdefault(k, []).append(v)
                 self._global_step += 1
+                if self.cfg.target_kl is not None and approx_kl.item() > self.cfg.target_kl:
+                    stop_early = True
+                    break
+            if stop_early:
+                break
+
+            # --- Auxiliary losses / encoder updates ---
+            # Run auxiliary reconstruction losses (if any) and update encoders separately.
+            if getattr(self, "encoder_optimizer", None) is not None and getattr(self.model, "aux_modules", None):
+                # Build a batch-level aux loss across available aux heads
+                aux_loss: torch.Tensor | None = None
+                for aux_name, aux_module in self.model.aux_modules.items():
+                    # Expect aux_name like '<enc_name>_aux'
+                    enc_name = aux_name[:-4] if aux_name.endswith("_aux") else None
+                    # Resolve associated observation key
+                    input_key = None
+                    if enc_name and hasattr(self.model, "encoder_input_names"):
+                        input_key = self.model.encoder_input_names.get(enc_name)
+                    if input_key is None:
+                        if enc_name and enc_name in mini.obs:
+                            input_key = enc_name
+                        elif len(mini.obs) == 1:
+                            input_key = next(iter(mini.obs.keys()))
+                        else:
+                            # Cannot determine associated obs for this aux head
+                            continue
+                    obs_tensor = mini.obs.get(input_key)
+                    if obs_tensor is None:
+                        continue
+                    obs_tensor = obs_tensor.to(self.device)
+                    # Encoder forward (will create grads for encoder parameters)
+                    enc = self.model.encoders.get(enc_name) if enc_name else None
+                    if enc is None:
+                        continue
+                    latent = enc(obs_tensor)
+                    # Aux head forward
+                    recon = aux_module(latent)
+                    # Try compute reconstruction loss if shapes match
+                    try:
+                        loss = reconstruction_loss(recon, obs_tensor)
+                    except Exception:
+                        # Unsupported aux head / loss combination — skip
+                        continue
+                    aux_loss = loss if aux_loss is None else aux_loss + loss
+
+                if aux_loss is not None:
+                    weight = float(getattr(self.cfg, "aux_weight", 1.0))
+                    total_aux = aux_loss * weight
+                    self.encoder_optimizer.zero_grad()
+                    total_aux.backward()
+                    # Clip encoder/aux gradients (use params from optimizer)
+                    try:
+                        enc_params = self.encoder_optimizer.param_groups[0]["params"]
+                        nn.utils.clip_grad_norm_(enc_params, self.cfg.max_grad_norm)
+                    except Exception:
+                        pass
+                    self.encoder_optimizer.step()
 
         self.buffer.reset()
         return {k: sum(v) / len(v) for k, v in metrics_accum.items()}
 
     def save(self, path: str) -> None:
         import torch
-        torch.save({"model": self.model.state_dict(), "step": self._global_step}, path)
+        torch.save(self.checkpoint_payload(), path)
 
     def load(self, path: str) -> None:
         import torch
         ckpt = torch.load(path, map_location=self.device, weights_only=False)
-        self.model.load_state_dict(ckpt["model"])
-        self._global_step = ckpt.get("step", 0)
+        self.load_checkpoint_payload(ckpt)
+
+    def checkpoint_payload(self) -> dict[str, Any]:
+        return {
+            "model_state": self.model.state_dict(),
+            "optimizer_state": self.optimizer.state_dict(),
+            "encoder_optimizer_state": self.encoder_optimizer.state_dict() if getattr(self, "encoder_optimizer", None) is not None else None,
+            "algo_step": self._global_step,
+        }
+
+    def load_checkpoint_payload(self, payload: dict[str, Any]) -> None:
+        model_state = payload.get("model_state", payload.get("model"))
+        if model_state is not None:
+            self.model.load_state_dict(model_state)
+        optimizer_state = payload.get("optimizer_state")
+        if optimizer_state is not None:
+            self.optimizer.load_state_dict(optimizer_state)
+        encoder_opt_state = payload.get("encoder_optimizer_state")
+        if encoder_opt_state is not None and getattr(self, "encoder_optimizer", None) is not None:
+            self.encoder_optimizer.load_state_dict(encoder_opt_state)
+        self._global_step = int(payload.get("algo_step", payload.get("step", 0)))

@@ -13,7 +13,7 @@ for continuous action-space environments.
 ## Features
 
 - **Algorithms**: PPO, SAC, DDPG, A2C, A3C — all supporting continuous actions
-- **Composable networks**: plug-and-play MLP / CNN / GRU encoders via YAML config
+- **YAML-first model system**: declare encoders, heads, flows, and multimodal routing as data
 - **Multi-modal inputs**: state, pixels, lidar, text — all in one model
 - **Vectorised training**: `SyncVectorEnv` and `AsyncVectorEnv` for fast data collection
 - **Goal-conditioned RL**: `GoalEnvWrapper` for gymnasium-robotics Fetch tasks
@@ -109,3 +109,13 @@ srl-train --config configs/envs/halfcheetah_sac.yaml \
 ```
 
 Each run writes compact terminal summaries during training and stores `summary.json`, `history.csv`, `metrics.jsonl`, and `training_curves.svg` in the run directory. Use `--no-plots`, `--plot-metrics`, `--log-interval`, `--episode-window`, and `--console-metrics` to customize the logging layout and exported curves.
+
+---
+
+## Read this next
+
+If you want to understand SRL properly, start from the YAML layer rather than the algorithm pages.
+
+- [YAML Core Guide](yaml_core.md) explains the declarative model graph, observation routing, and current system boundary.
+- [Configuration Reference](config_reference.md) lists the supported schema fields in detail.
+- [Quick Start](quickstart.md) shows how the same YAML file is consumed by the CLI and Python API.

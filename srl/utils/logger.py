@@ -24,6 +24,7 @@ class LoggerConfig:
     enable_plots: bool = True
     plot_metrics: Sequence[str] | None = None
     max_console_metrics: int = 6
+    console_layout: str = "multi_line"
 
 
 class Logger:
@@ -149,7 +150,7 @@ class Logger:
         self._last_metrics.update(progress_metrics)
 
         if console:
-            self._emit_progress_line(step=step, total_steps=total_steps, metrics=namespaced)
+            self._emit_progress(step=step, total_steps=total_steps, metrics=namespaced)
 
     def update_episodes(
         self,
@@ -253,7 +254,7 @@ class Logger:
             return 0.0
         return float(sum(values) / len(values))
 
-    def _emit_progress_line(
+    def _emit_progress(
         self,
         *,
         step: int,
@@ -282,15 +283,29 @@ class Logger:
             if key in seen or key.endswith("_weight"):
                 continue
             summary_pairs.append((key, value))
-            if len(summary_pairs) >= self.config.max_console_metrics:
+            if self.config.console_layout == "single_line" and len(summary_pairs) >= self.config.max_console_metrics:
                 break
 
-        formatted = " | ".join(
-            f"{name}={self._format_value(value)}"
-            for name, value in summary_pairs
-            if value is not None
-        )
-        print(f"[train] step {progress_str} | {formatted}", flush=True)
+        visible_pairs = [(name, value) for name, value in summary_pairs if value is not None]
+        if self.config.console_layout == "single_line":
+            formatted = " | ".join(
+                f"{name}={self._format_value(value)}"
+                for name, value in visible_pairs
+            )
+            print(f"[train] step {progress_str} | {formatted}", flush=True)
+        else:
+            score_keys = {"fps", "score", f"score@{self.config.episode_window}", "len"}
+            score_pairs = [(name, value) for name, value in visible_pairs if name in score_keys]
+            metric_pairs = [(name, value) for name, value in visible_pairs if name not in score_keys]
+            print(f"[train] step {progress_str}", flush=True)
+            if score_pairs:
+                print("  rollout", flush=True)
+                for name, value in score_pairs:
+                    print(f"    {name}: {self._format_value(value)}", flush=True)
+            if metric_pairs:
+                print("  metrics", flush=True)
+                for name, value in metric_pairs:
+                    print(f"    {name}: {self._format_value(value)}", flush=True)
         self._last_console_step = step
 
     def _format_value(self, value: float) -> str:

@@ -41,13 +41,14 @@ class BaseAgent(abc.ABC):
         """Save checkpoint via :class:`~srl.utils.checkpoint.CheckpointManager`."""
         from srl.utils.checkpoint import CheckpointManager
 
-        CheckpointManager(path).save(self)
+        path = Path(path)
+        CheckpointManager(path.parent).save(self, tag=path.stem)
 
     def load(self, path: str | Path) -> "BaseAgent":
         """Load checkpoint in-place and return *self*."""
         from srl.utils.checkpoint import CheckpointManager
 
-        CheckpointManager(path).load(self)
+        CheckpointManager(Path(path).parent).load(self, path)
         return self
 
     # ------------------------------------------------------------------

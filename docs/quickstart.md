@@ -14,7 +14,9 @@ pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[mujoco]"
 
 ## 2. Pick a config
 
-SRL uses YAML to describe the neural network architecture:
+SRL uses YAML as the primary control plane for model structure. The config file is not just a convenience layer; it is the main way you declare encoders, graph connectivity, heads, and the training knobs currently supported by the CLI.
+
+Read the [YAML Core Guide](yaml_core.md) if you want the full mental model. The example below shows the basic shape:
 
 ```yaml
 # configs/envs/halfcheetah_sac.yaml
@@ -55,6 +57,8 @@ srl-train --config configs/envs/halfcheetah_sac.yaml \
 ```
 
 The CLI prints compact training summaries to the terminal and writes `summary.json`, `history.csv`, `metrics.jsonl`, and `training_curves.svg` into the selected run directory. Use `--no-plots`, `--plot-metrics`, `--log-interval`, `--episode-window`, and `--console-metrics` to customize the output.
+
+The important design point is that the CLI is consuming the same declarative YAML that `ModelBuilder` consumes. In other words, the config file is the core representation shared by training, visualization, and reproducible experiments.
 
 ---
 

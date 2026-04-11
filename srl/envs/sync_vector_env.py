@@ -27,7 +27,10 @@ class SyncVectorEnv:
         self.act_space = self.envs[0].act_space
 
     def reset(self, **kwargs) -> tuple[dict[str, np.ndarray], list[dict]]:
-        obs_list, info_list = zip(*[e.reset(**kwargs) for e in self.envs])
+        obs_list, info_list = zip(*[
+            e.reset(**_reset_kwargs_for_env(kwargs, index))
+            for index, e in enumerate(self.envs)
+        ])
         return _stack_obs(obs_list), list(info_list)
 
     def step(
@@ -59,3 +62,11 @@ class SyncVectorEnv:
 def _stack_obs(obs_list: list[dict]) -> dict[str, np.ndarray]:
     keys = obs_list[0].keys()
     return {k: np.stack([o[k] for o in obs_list], axis=0) for k in keys}
+
+
+def _reset_kwargs_for_env(kwargs: dict[str, Any], index: int) -> dict[str, Any]:
+    env_kwargs = dict(kwargs)
+    seed = env_kwargs.get("seed")
+    if isinstance(seed, int):
+        env_kwargs["seed"] = seed + index
+    return env_kwargs

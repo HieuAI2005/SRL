@@ -1,13 +1,15 @@
 # SRL — Simple Reinforcement Learning
 
-SRL is a modular PyTorch reinforcement learning library for continuous-control environments with YAML-defined models and a Python-first workflow.
+SRL is a modular reinforcement learning library for continuous-control environments with a YAML-first model system.
 
 ## What is included
 
-- Algorithms: PPO, SAC, DDPG, A2C, A3C
+- Algorithms: PPO, SAC, DDPG, TD3, A2C, A3C
 - Environment adapters: Gymnasium, Box2D, MuJoCo, Fetch robotics, Isaac Lab, racecar_gym
-- Config-driven model builder for MLP, CNN, and multi-input policies
-- CLI training entrypoint: `srl-train`
+- YAML-driven model graph builder for encoders, heads, flows, and multimodal policies
+- CLI tools: `srl-train`, `srl-benchmark`, `srl-visualize`
+- Pipeline visualization export for model graphs and training graphs
+- Checkpoint save and resume support from the training CLI
 - Optional ROS 2 Python API for inference
 
 ## Install
@@ -35,6 +37,14 @@ pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[all]"
 
 ## Quick start
 
+The most important concept in SRL is the YAML model graph. Treat the config file as the source of truth for model structure, observation routing, and the currently supported declarative parts of training.
+
+Start here before diving into algorithms or CLI flags:
+
+- YAML core guide: https://bigkatoan.github.io/SRL/yaml_core
+- Config reference: https://bigkatoan.github.io/SRL/config_reference
+- Quick start: https://bigkatoan.github.io/SRL/quickstart
+
 ```bash
 srl-train --config configs/envs/pendulum_ppo.yaml \
           --env Pendulum-v1 \
@@ -51,8 +61,34 @@ Training runs now export:
 - compact terminal summaries with score, rolling score, episode length, throughput, and algorithm metrics
 - TensorBoard scalars under `runs/...`
 - `summary.json`, `history.csv`, `metrics.jsonl`, and `training_curves.svg` after training
+- optional PNG pipeline graphs for the model and training flow
 
 You can disable plot export with `--no-plots` or choose specific curves with `--plot-metrics`.
+
+Useful CLI examples:
+
+```bash
+# export pipeline graphs without training
+srl-visualize --config configs/envs/halfcheetah_sac.yaml --output-dir runs/pipelines
+
+# save pipeline graphs before training
+srl-train --config configs/envs/halfcheetah_sac.yaml \
+          --save-model-pipeline \
+          --save-training-pipeline
+
+# resume from a checkpoint created by srl-train
+srl-train --config configs/envs/pendulum_ppo.yaml \
+          --env Pendulum-v1 \
+          --algo ppo \
+          --steps 200000 \
+          --resume checkpoints/ppo_pendulum_ppo/final_0000100000.pt
+
+# compare sync vs async vectorization locally
+srl-benchmark --config configs/envs/halfcheetah_sac.yaml \
+              --env HalfCheetah-v5 \
+              --modes sync,async \
+              --n-envs 4
+```
 
 ## Supported environments
 
@@ -73,12 +109,34 @@ Deep environment and algorithm validation lives in [tests/test_deep_env_algorith
 bash scripts/run_deep_env_tests.sh
 ```
 
-That runner now also executes headless Isaac Lab deep tests for PPO, A2C, SAC, and DDPG when `tests/IsaacLab` is available.
+That runner now also executes headless Isaac Lab deep tests for PPO, A2C, SAC, DDPG, and TD3 when `tests/IsaacLab` is available.
+
+For a full config-matrix benchmark sweep with preserved per-case artifacts, use:
+
+```bash
+bash scripts/run_full_matrix_benchmark.sh --python tests/venv/bin/python
+```
+
+That script iterates every YAML under `configs/envs`, continues through failures, records `passed` / `failed` / `blocked` per case, writes one master log under `matrix_runs/.../matrix.log`, keeps each case's `runs/` and `checkpoints/` outputs separately, and emits `cases.jsonl`, `report.json`, and `summary.md` with target-threshold judging. By default it now runs in a convergence-oriented mode with a shorter shared budget and lighter targets from `configs/benchmarks/convergence_targets.yaml` so you can see learning progress without waiting for full solved-policy training. Use `--budget-mode full --target-file configs/benchmarks/core_targets.yaml` when you want the stricter beat-env gate.
+
+Examples:
+
+```bash
+# short convergence sweep with live logs
+bash run_full_matrix_benchmark.sh --skip-install --python tests/venv/bin/python --label quick_check
+
+# strict full-budget gate using YAML step counts and stricter thresholds
+bash run_full_matrix_benchmark.sh --skip-install --python tests/venv/bin/python \
+    --budget-mode full \
+    --target-file configs/benchmarks/core_targets.yaml \
+    --label strict_gate
+```
 
 ## Documentation
 
 - Docs home: https://bigkatoan.github.io/SRL
 - Installation: https://bigkatoan.github.io/SRL/installation
+- YAML core guide: https://bigkatoan.github.io/SRL/yaml_core
 - Environments: https://bigkatoan.github.io/SRL/environments/
 - Config reference: https://bigkatoan.github.io/SRL/config_reference
 - ROS 2 Python API: https://bigkatoan.github.io/SRL/ros2

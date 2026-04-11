@@ -8,7 +8,15 @@ env_type: "isaaclab"
 algo: ppo
 
 encoders:
-  - name: state_enc
+  - name: actor_state_enc
+    type: mlp
+    input_dim: 60
+    latent_dim: 256
+    layers:
+      - {out_features: 256, activation: elu, norm: none}
+      - {out_features: 256, activation: elu, norm: none}
+      - {out_features: 128, activation: elu, norm: none}
+  - name: critic_state_enc
     type: mlp
     input_dim: 60
     latent_dim: 256
@@ -18,19 +26,22 @@ encoders:
       - {out_features: 128, activation: elu, norm: none}
 
 flows:
-  - "state_enc -> actor"
-  - "state_enc -> critic"
+  - "actor_state_enc -> actor"
+  - "critic_state_enc -> critic"
 
 actor:
   name: actor
   type: gaussian
   action_dim: 8
   log_std_init: -1.0
+  layers:
+    - {out_features: 128, activation: elu, norm: none}
 
 critic:
   name: critic
   type: value
-  layers: []
+  layers:
+    - {out_features: 128, activation: elu, norm: none}
 
 losses:
   - {name: policy,  weight: 1.0}

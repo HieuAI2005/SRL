@@ -35,10 +35,14 @@ class DiagonalGaussian(nn.Module):
         action_dim: int,
         log_std_init: float = 0.0,
         state_dependent_std: bool = True,
+        log_std_min: float = LOG_STD_MIN,
+        log_std_max: float = LOG_STD_MAX,
     ) -> None:
         super().__init__()
         self.action_dim = action_dim
         self.state_dependent_std = state_dependent_std
+        self.log_std_min = log_std_min
+        self.log_std_max = log_std_max
         if not state_dependent_std:
             self.log_std = nn.Parameter(torch.full((action_dim,), log_std_init))
 
@@ -49,7 +53,7 @@ class DiagonalGaussian(nn.Module):
     ) -> "DiagonalGaussian._Dist":
         if not self.state_dependent_std:
             log_std = self.log_std.expand_as(mean)
-        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
+        log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
         std = log_std.exp()
         return self._Dist(mean, std)
 
@@ -85,16 +89,18 @@ class SquashedGaussian(nn.Module):
         - 2(log 2 - u - softplus(-2u))
     """
 
-    def __init__(self, action_dim: int) -> None:
+    def __init__(self, action_dim: int, log_std_min: float = LOG_STD_MIN, log_std_max: float = LOG_STD_MAX) -> None:
         super().__init__()
         self.action_dim = action_dim
+        self.log_std_min = log_std_min
+        self.log_std_max = log_std_max
 
     def forward(
         self,
         mean: torch.Tensor,
         log_std: torch.Tensor,
     ) -> "SquashedGaussian._Dist":
-        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
+        log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
         std = log_std.exp()
         return self._Dist(mean, std)
 

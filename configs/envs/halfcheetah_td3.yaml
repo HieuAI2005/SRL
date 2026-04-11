@@ -1,23 +1,22 @@
-# SAC on FetchReach-v4  (obs_flat=16, act=4)
-# Flat obs = [observation(10) | achieved_goal(3) | desired_goal(3)]
-# Target: success_rate > 0.90 (convergence ~500k steps)
+# TD3 on HalfCheetah-v5  (obs=17, act=6)
+# Target return: ~9000 (convergence ~1M steps)
 
-env_id: "FetchReach-v4"
-env_type: "goal"
+env_id: "HalfCheetah-v5"
+env_type: "flat"
 
-algo: sac
+algo: td3
 
 encoders:
   - name: actor_state_enc
     type: mlp
-    input_dim: 16
+    input_dim: 17
     latent_dim: 256
     layers:
       - {out_features: 256, activation: relu, norm: layer_norm}
       - {out_features: 256, activation: relu, norm: layer_norm}
   - name: critic_state_enc
     type: mlp
-    input_dim: 16
+    input_dim: 17
     latent_dim: 256
     layers:
       - {out_features: 256, activation: relu, norm: layer_norm}
@@ -29,37 +28,38 @@ flows:
 
 actor:
   name: actor
-  type: squashed_gaussian
-  action_dim: 4
-  log_std_min: -5.0
-  log_std_max: 2.0
+  type: deterministic
+  action_dim: 6
   layers:
     - {out_features: 256, activation: relu, norm: layer_norm}
 
 critic:
   name: critic
   type: twin_q
-  action_dim: 4
+  action_dim: 6
   layers:
     - {out_features: 256, activation: relu, norm: layer_norm}
 
 losses:
-  - {name: sac_q,           weight: 1.0}
-  - {name: sac_policy,      weight: 1.0}
-  - {name: sac_temperature, weight: 1.0}
+  - {name: td3_q,      weight: 1.0}
+  - {name: td3_policy, weight: 1.0}
 
 train:
-  total_steps: 500_000
-  lr_actor: 3e-4
-  lr_critic: 3e-4
-  lr_alpha: 3e-4
+  total_steps: 1_000_000
+  n_envs: 4
+  lr_actor: 1e-4
+  lr_critic: 1e-3
   buffer_size: 1_000_000
   batch_size: 256
-  gamma: 0.98
+  gamma: 0.99
   tau: 0.005
-  learning_starts: 10_000
-  train_freq: 1
-  gradient_steps: 40
-  # GoalEnv settings
-  env_id: "FetchReach-v4"
-  include_goal: true
+  start_steps: 10_000
+  update_after: 1_000
+  update_every: 50
+  gradient_steps: 50
+  replay_n_step: 3
+  use_fp16: false
+  noise_sigma: 0.1
+  policy_noise: 0.2
+  noise_clip: 0.5
+  policy_delay: 2

@@ -36,13 +36,19 @@ class LogCallback(BaseCallback):
 class CheckpointCallback(BaseCallback):
     """Save a checkpoint every *save_interval* steps."""
 
-    def __init__(self, checkpoint_manager, save_interval: int = 10_000) -> None:
+    def __init__(self, checkpoint_manager, save_interval: int = 10_000, model=None, optimizer=None) -> None:
         self.cm = checkpoint_manager
         self.save_interval = save_interval
+        self.model = model
+        self.optimizer = optimizer
+
+    def bind(self, model, optimizer=None) -> None:
+        self.model = model
+        self.optimizer = optimizer
 
     def on_step_end(self, step: int, info: dict[str, Any]) -> None:
-        if step > 0 and step % self.save_interval == 0:
-            self.cm.save(step=step, metrics=info)
+        if step > 0 and step % self.save_interval == 0 and self.model is not None:
+            self.cm.save(model=self.model, optimizer=self.optimizer, step=step, metrics=info)
 
 
 class EarlyStopping(BaseCallback):

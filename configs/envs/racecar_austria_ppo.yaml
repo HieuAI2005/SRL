@@ -9,7 +9,14 @@ env_type: "racecar"
 algo: ppo
 
 encoders:
-  - name: state_enc
+  - name: actor_state_enc
+    type: mlp
+    input_dim: 1092
+    latent_dim: 256
+    layers:
+      - {out_features: 256, activation: relu, norm: layer_norm}
+      - {out_features: 256, activation: relu, norm: layer_norm}
+  - name: critic_state_enc
     type: mlp
     input_dim: 1092
     latent_dim: 256
@@ -18,19 +25,22 @@ encoders:
       - {out_features: 256, activation: relu, norm: layer_norm}
 
 flows:
-  - "state_enc -> actor"
-  - "state_enc -> critic"
+  - "actor_state_enc -> actor"
+  - "critic_state_enc -> critic"
 
 actor:
   name: actor
   type: gaussian
   action_dim: 2
   log_std_init: -0.5
+  layers:
+    - {out_features: 128, activation: relu, norm: layer_norm}
 
 critic:
   name: critic
   type: value
-  layers: []
+  layers:
+    - {out_features: 128, activation: relu, norm: layer_norm}
 
 losses:
   - {name: policy,  weight: 1.0}

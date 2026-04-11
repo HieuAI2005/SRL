@@ -67,6 +67,8 @@ dev = [
 
 [project.scripts]
 srl-train = "srl.cli.train:main"
+srl-benchmark = "srl.cli.benchmark:main"
+srl-visualize = "srl.cli.visualize:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

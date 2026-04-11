@@ -39,6 +39,9 @@ class LayerConfig:
 class EncoderConfig:
     name: str
     type: str                                # "mlp" | "cnn" | "lstm" | "text" | custom
+    # Explicit obs key this encoder reads from.  When set, routing is by name
+    # and takes priority over all heuristic rules.  Leave None for auto-routing.
+    input_name: str | None = None
     # mlp-specific
     input_dim: int | None = None
     # cnn-specific
@@ -118,6 +121,64 @@ class LossConfig:
         return obj
 
 
+@dataclass
+class PipelineNodeConfig:
+    id: str
+    label: str
+    kind: str = "process"
+    details: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PipelineEdgeConfig:
+    src: str
+    dst: str
+    label: str = ""
+
+    @classmethod
+    def from_any(cls, value: Any) -> "PipelineEdgeConfig":
+        if isinstance(value, str):
+            src, dst = [part.strip() for part in value.split("->", 1)]
+            return cls(src=src, dst=dst)
+        return cls(src=value["src"], dst=value["dst"], label=value.get("label", ""))
+
+
+@dataclass
+class VisualizationConfig:
+    save_model_pipeline: bool = False
+    model_pipeline_path: str | None = None
+    save_training_pipeline: bool = False
+    training_pipeline_path: str | None = None
+    export_only: bool = False
+    training_pipeline_nodes: list[PipelineNodeConfig] = field(default_factory=list)
+    training_pipeline_edges: list[PipelineEdgeConfig] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "VisualizationConfig":
+        if not data:
+            return cls()
+        pipeline_data = data.get("training_pipeline") or {}
+        nodes = [
+            PipelineNodeConfig(
+                id=node["id"],
+                label=node.get("label", node["id"]),
+                kind=node.get("kind", "process"),
+                details=list(node.get("details", [])),
+            )
+            for node in pipeline_data.get("nodes", [])
+        ]
+        edges = [PipelineEdgeConfig.from_any(edge) for edge in pipeline_data.get("edges", [])]
+        return cls(
+            save_model_pipeline=bool(data.get("save_model_pipeline", False)),
+            model_pipeline_path=data.get("model_pipeline_path"),
+            save_training_pipeline=bool(data.get("save_training_pipeline", False)),
+            training_pipeline_path=data.get("training_pipeline_path"),
+            export_only=bool(data.get("export_only", False)),
+            training_pipeline_nodes=nodes,
+            training_pipeline_edges=edges,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Top-level agent config
 # ---------------------------------------------------------------------------
@@ -169,6 +230,7 @@ class AgentModelConfig:
     actor: HeadConfig | None = None
     critic: HeadConfig | None = None
     losses: list[LossConfig] = field(default_factory=list)
+    visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "AgentModelConfig":
@@ -182,6 +244,7 @@ class AgentModelConfig:
         critic = HeadConfig.from_dict(critic_d) if critic_d else None
 
         losses = [LossConfig.from_dict(l) for l in d.get("losses", [])]
+        visualization = VisualizationConfig.from_dict(d.get("visualization"))
 
         return cls(
             encoders=encoders,
@@ -189,4 +252,5 @@ class AgentModelConfig:
             actor=actor,
             critic=critic,
             losses=losses,
+            visualization=visualization,
         )

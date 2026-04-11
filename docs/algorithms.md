@@ -2,6 +2,10 @@
 
 SRL implements five RL algorithms for **continuous action spaces**.
 
+Algorithm configuration in SRL sits on top of the YAML model graph. The YAML file declares the model structure, routing, and currently supported loss terms; the algorithm layer consumes that graph and applies PPO, SAC, DDPG, A2C, or A3C-specific optimization logic on top.
+
+Read the [YAML Core Guide](yaml_core.md) first if you want the architectural picture. This page focuses on the algorithm-side hyperparameters and runtime behavior.
+
 ---
 
 ## Overview

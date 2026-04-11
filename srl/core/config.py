@@ -68,8 +68,12 @@ class SACConfig:
     action_dim: int = 0           # required for automatic target entropy
     target_update_interval: int = 1
     learning_starts: int = 10_000
+    start_steps: int | None = None
+    update_after: int | None = None
+    update_every: int | None = None
     train_freq: int = 1
     gradient_steps: int = 1
+    alpha: float | None = None
     init_alpha: float = 0.2
     auto_entropy_tuning: bool = True
     target_entropy: str | float = "auto"  # "auto" → -action_dim
@@ -77,6 +81,8 @@ class SACConfig:
     per_alpha: float = 0.6
     per_beta_start: float = 0.4
     use_fp16: bool = False
+    replay_n_step: int = 1
+    replay_num_envs: int = 1
 
 
 @dataclass
@@ -89,12 +95,41 @@ class DDPGConfig:
     tau: float = 0.005
     action_dim: int = 0           # required for OU noise
     learning_starts: int = 10_000
+    start_steps: int | None = None
+    update_after: int | None = None
+    update_every: int | None = None
     train_freq: int = 1
     gradient_steps: int = 1
     action_noise: str = "gaussian"  # "gaussian" | "ou"
     noise_sigma: float = 0.1
     use_per: bool = False
     use_fp16: bool = False
+    replay_n_step: int = 1
+    replay_num_envs: int = 1
+
+
+@dataclass
+class TD3Config:
+    lr_actor: float = 1e-4
+    lr_critic: float = 1e-3
+    buffer_size: int = 1_000_000
+    batch_size: int = 256
+    gamma: float = 0.99
+    tau: float = 0.005
+    action_dim: int = 0
+    learning_starts: int = 10_000
+    start_steps: int | None = None
+    update_after: int | None = None
+    update_every: int | None = None
+    gradient_steps: int = 1
+    action_noise: str = "gaussian"
+    noise_sigma: float = 0.1
+    policy_noise: float = 0.2
+    noise_clip: float = 0.5
+    policy_delay: int = 2
+    use_fp16: bool = False
+    replay_n_step: int = 1
+    replay_num_envs: int = 1
 
 
 # ──────────────────────────────────────────────────────────────────────────────
