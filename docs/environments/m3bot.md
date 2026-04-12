@@ -6,10 +6,10 @@ This page documents how `M3bot` was validated on the current machine and how it 
 
 ## Repository and runtime layout
 
-Validated local paths on the current machine:
+Validated local paths on the current machine (example placeholders):
 
-- M3bot checkout: `/home/ubuntu/antd/tests/M3bot`
-- Isaac runtime interpreter: `/home/ubuntu/antd/isaaclab/venv/bin/python`
+- M3bot checkout: `tests/M3bot` (or /path/to/tests/M3bot)
+- Isaac runtime interpreter: `/path/to/isaaclab/venv/bin/python`
 
 The `M3bot` repository is separate from the `SRL` repository. In practice, the working flow on this machine is:
 
@@ -22,7 +22,7 @@ The `M3bot` repository is separate from the `SRL` repository. In practice, the w
 Clone the task repo into a separate workspace folder:
 
 ```bash
-cd /home/ubuntu/antd/tests
+cd tests
 git clone https://github.com/Bigkatoan/M3bot.git
 cd M3bot
 ```
@@ -33,10 +33,10 @@ If the repository depends on an Isaac Lab submodule, make sure it is actually po
 git submodule update --init --recursive
 ```
 
-On the current machine, the verified runtime is the pre-existing Isaac Lab environment at:
+On the current machine, the verified runtime is the pre-existing Isaac Lab environment at (example):
 
 ```bash
-/home/ubuntu/antd/isaaclab/venv/bin/python
+/path/to/isaaclab/venv/bin/python
 ```
 
 For non-interactive terminal runs, add:
@@ -50,11 +50,11 @@ OMNI_KIT_ACCEPT_EULA=YES
 ### Cheap validation
 
 ```bash
-cd /home/ubuntu/antd/tests/M3bot
+cd tests/M3bot
 python3 tools/validate_source.py
 
-OMNI_KIT_ACCEPT_EULA=YES /home/ubuntu/antd/isaaclab/venv/bin/python train.py --help
-OMNI_KIT_ACCEPT_EULA=YES /home/ubuntu/antd/isaaclab/venv/bin/python play.py --help
+OMNI_KIT_ACCEPT_EULA=YES /path/to/isaaclab/venv/bin/python train.py --help
+OMNI_KIT_ACCEPT_EULA=YES /path/to/isaaclab/venv/bin/python play.py --help
 ```
 
 ### Verified smoke training
@@ -62,8 +62,8 @@ OMNI_KIT_ACCEPT_EULA=YES /home/ubuntu/antd/isaaclab/venv/bin/python play.py --he
 The following state-task smoke run completed successfully on this machine:
 
 ```bash
-cd /home/ubuntu/antd/tests/M3bot
-OMNI_KIT_ACCEPT_EULA=YES /home/ubuntu/antd/isaaclab/venv/bin/python \
+cd tests/M3bot
+OMNI_KIT_ACCEPT_EULA=YES /path/to/isaaclab/venv/bin/python \
   train.py --task Isaac-M3-Reach-v0 --headless --num_envs 64 --max_iterations 1
 ```
 
@@ -78,8 +78,8 @@ Observed artifacts:
 The following play/export path also completed successfully:
 
 ```bash
-cd /home/ubuntu/antd/tests/M3bot
-OMNI_KIT_ACCEPT_EULA=YES /home/ubuntu/antd/isaaclab/venv/bin/python \
+cd tests/M3bot
+OMNI_KIT_ACCEPT_EULA=YES /path/to/isaaclab/venv/bin/python \
   play.py --task Isaac-M3-Reach-v0 --headless \
   --checkpoint logs/rsl_rl/m3_reach/<timestamp>/model_0.pt \
   --video --video_length 8

@@ -92,23 +92,23 @@ Use the plain task name in docs and commands unless you are debugging lower-leve
 
 ## M3bot on this machine
 
-The separate `M3bot` task repository has also been validated locally against an Isaac Lab runtime on this machine.
+The separate `M3bot` task repository can be validated alongside SRL. Replace the paths below with the locations used on your machine.
 
-Verified paths:
+Verified paths (example placeholders):
 
-- M3bot repo: `/home/ubuntu/antd/tests/M3bot`
-- Isaac runtime: `/home/ubuntu/antd/isaaclab/venv/bin/python`
+- M3bot repo: `tests/M3bot` (or /path/to/tests/M3bot)
+- Isaac runtime: `/path/to/isaaclab/venv/bin/python`
 
-Verified commands:
+Verified commands (adjust paths to your layout):
 
 ```bash
-cd /home/ubuntu/antd/tests/M3bot
+cd tests/M3bot
 python3 tools/validate_source.py
 
-OMNI_KIT_ACCEPT_EULA=YES /home/ubuntu/antd/isaaclab/venv/bin/python \
+OMNI_KIT_ACCEPT_EULA=YES /path/to/isaaclab/venv/bin/python \
   train.py --task Isaac-M3-Reach-v0 --headless --num_envs 64 --max_iterations 1
 
-OMNI_KIT_ACCEPT_EULA=YES /home/ubuntu/antd/isaaclab/venv/bin/python \
+OMNI_KIT_ACCEPT_EULA=YES /path/to/isaaclab/venv/bin/python \
   play.py --task Isaac-M3-Reach-v0 --headless \
   --checkpoint logs/rsl_rl/m3_reach/<timestamp>/model_0.pt \
   --video --video_length 8
