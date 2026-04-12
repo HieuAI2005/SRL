@@ -207,7 +207,7 @@ For checkpoint details and retention behavior, see [checkpointing.md](checkpoint
 ## Environment-specific notes
 
 - Gymnasium, MuJoCo, Box2D, and robotics configs are normally run through `srl-train` after standard package installation.
-- Isaac Lab requires activation of the Isaac Lab Python environment first. See [Isaac Lab](isaaclab.md) for the environment-specific workflow.
+- Isaac Lab requires activation of the Isaac Lab Python environment first. See [Isaac Lab](integrations/isaaclab.md) for the environment-specific workflow.
 - ROS 2 deployment is not driven through these CLI tools. See [ROS 2 Python API](ros2.md).
 
 ## Common failure modes

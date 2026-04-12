@@ -39,12 +39,28 @@ nav:
   - Getting Started:
     - Installation: installation.md
     - Quick Start: quickstart.md
-    - YAML Core Guide: yaml_core.md
-    - Encoders: encoders.md
     - CLI Reference: cli.md
+
+  - YAML Configuration:
+    - Overview: yaml/index.md
+    - Encoders: yaml/encoders.md
+    - Heads & Flows: yaml/heads_flows.md
+    - Auxiliary Representation Learning: yaml/auxiliary.md
+    - Training Block Reference: yaml/training_block.md
+
+  - Training System:
+    - Overview: training/index.md
+    - Algorithms: training/algorithms.md
+    - Runners & Training Loop: training/runners.md
+    - Replay Buffers: training/buffers.md
     - Checkpointing: checkpointing.md
-    - Async Off-Policy Runner: async_runner.md
-    - GPU Replay Buffer: gpu_replay_buffer.md
+
+  - Integrations:
+    - Overview: integrations/index.md
+    - Isaac Lab: integrations/isaaclab.md
+    - Gymnasium: integrations/gymnasium.md
+    - ROS 2: ros2.md
+
   - Environments:
     - Overview: environments/index.md
     - Classic Control: environments/classic_control.md
@@ -54,16 +70,17 @@ nav:
     - racecar_gym: environments/racecar.md
     - Isaac Lab: environments/isaaclab.md
     - M3bot: environments/m3bot.md
-  - Algorithms: algorithms.md
-  - Configuration Reference: config_reference.md
-  - Limitations: limitations.md
+
   - API Reference:
     - srl.algorithms: api/algorithms.md
     - srl.envs: api/envs.md
     - srl.networks: api/networks.md
     - srl.utils: api/utils.md
-  - ROS 2: ros2.md
-  - Contributing: contributing.md
+
+  - Reference:
+    - Configuration Reference: config_reference.md
+    - Limitations: limitations.md
+    - Contributing: contributing.md
 
 plugins:
   - search
