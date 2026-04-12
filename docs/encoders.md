@@ -123,15 +123,16 @@ Tham khảo tài liệu NVIDIA Isaac/Isaac Sim khi làm tích hợp môi trườ
 
 ## 10. Liên kết nhanh
 
-- Builder: [srl/registry/builder.py](https://github.com/Bigkatoan/SRL/blob/main/srl/registry/builder.py)
-- FlowGraph / AgentModel: [srl/networks/agent_model.py](https://github.com/Bigkatoan/SRL/blob/main/srl/networks/agent_model.py)
-- Schema: [srl/registry/config_schema.py](https://github.com/Bigkatoan/SRL/blob/main/srl/registry/config_schema.py)
 
----
 
 Nếu bạn đồng ý, tôi sẽ:
-- mở rộng phần ví dụ (thêm config hoàn chỉnh cho SAC/TD3 với encoder cụ thể),
-- chuẩn hóa phần `train` keys theo `srl/core/config.py`,
-- và sắp xếp lại nav thành cấu trúc "Getting Started → Architecture → Encoders" giống mẫu NVIDIA.
 
+## Ví dụ và hướng dẫn thêm
+
+Xem các ví dụ cấu hình và các bước kiểm thử nhanh tại: [Examples: encoder examples](examples/encoder_examples.md)
+
+Nếu bạn muốn tôi triển khai thêm, tôi có thể:
+- mở rộng các cấu hình ví dụ thành file YAML đầy đủ trong `configs/examples/`
+- thêm hướng dẫn kiểm thử CI/smoke tests
+- tổ chức lại nav theo mẫu NVIDIA (Architecture → Encoders → Deployment)
 Bạn muốn tôi triển khai tiếp phần nào trước?
