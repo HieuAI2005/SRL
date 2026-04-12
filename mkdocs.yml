@@ -42,6 +42,8 @@ nav:
     - YAML Core Guide: yaml_core.md
     - CLI Reference: cli.md
     - Checkpointing: checkpointing.md
+    - Async Off-Policy Runner: async_runner.md
+    - GPU Replay Buffer: gpu_replay_buffer.md
   - Environments:
     - Overview: environments/index.md
     - Classic Control: environments/classic_control.md

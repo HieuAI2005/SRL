@@ -69,28 +69,28 @@ pip install git+https://github.com/Bigkatoan/SRL.git
 If you are working with the separate `M3bot` task repository on this same machine, the currently verified runtime path is:
 
 ```bash
-/home/ubuntu/antd/isaaclab/venv/bin/python
+/path/to/isaaclab/venv/bin/python
 ```
 
 The validated repository layout is:
 
 ```text
-/home/ubuntu/antd/SRL
-/home/ubuntu/antd/tests/M3bot
-/home/ubuntu/antd/isaaclab/venv
+/path/to/SRL (repo root)
+tests/M3bot
+/path/to/isaaclab/venv
 ```
 
 Recommended setup flow:
 
 ```bash
-cd /home/ubuntu/antd/tests
+cd tests
 git clone https://github.com/Bigkatoan/M3bot.git
 cd M3bot
 
 python3 tools/validate_source.py
 
-OMNI_KIT_ACCEPT_EULA=YES /home/ubuntu/antd/isaaclab/venv/bin/python train.py --help
-OMNI_KIT_ACCEPT_EULA=YES /home/ubuntu/antd/isaaclab/venv/bin/python play.py --help
+OMNI_KIT_ACCEPT_EULA=YES /path/to/isaaclab/venv/bin/python train.py --help
+OMNI_KIT_ACCEPT_EULA=YES /path/to/isaaclab/venv/bin/python play.py --help
 ```
 
 For a fuller task-specific guide, see [M3bot](environments/m3bot.md).

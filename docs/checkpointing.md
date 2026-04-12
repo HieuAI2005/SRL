@@ -2,7 +2,7 @@
 
 SRL checkpointing is intentionally simple: training saves model state, optional optimizer state, the current step, and any metrics attached to that save.
 
-The source of truth is [srl/utils/checkpoint.py](/home/ubuntu/antd/SRL/srl/utils/checkpoint.py).
+The source of truth is [srl/utils/checkpoint.py](https://github.com/Bigkatoan/SRL/blob/main/srl/utils/checkpoint.py).
 
 ## What gets saved
 

@@ -87,7 +87,7 @@ Use the plain task name in docs and commands unless you are debugging lower-leve
 - Isaac Lab bootstrap must happen from a Python environment where Isaac Lab and Isaac Sim are already activated.
 - Isaac Lab's internal vectorization is distinct from SRL's sync/async Gymnasium vectorization modes.
 - The current integration assumes the task name, config, and observation routing conventions stay aligned with the provided YAML files.
-- Observation groups returned by Isaac Lab are preserved as dict keys by [isaac_lab_wrapper.py](/home/ubuntu/antd/SRL/srl/envs/isaac_lab_wrapper.py). In practice, encoder names or `input_name` mappings must match those observation-group keys.
+- Observation groups returned by Isaac Lab are preserved as dict keys by [isaac_lab_wrapper.py](https://github.com/Bigkatoan/SRL/blob/main/srl/envs/isaac_lab_wrapper.py). In practice, encoder names or `input_name` mappings must match those observation-group keys.
 - Image observations returned as HWC are transposed to CHW to match SRL CNN encoder expectations.
 
 ## M3bot on this machine
@@ -164,9 +164,9 @@ train:
 
 Reference configs in this repo:
 
-- [isaaclab_cartpole_ppo.yaml](/home/ubuntu/antd/SRL/configs/envs/isaaclab_cartpole_ppo.yaml)
-- [isaaclab_ant_ppo.yaml](/home/ubuntu/antd/SRL/configs/envs/isaaclab_ant_ppo.yaml)
-- [isaaclab_humanoid_ppo.yaml](/home/ubuntu/antd/SRL/configs/envs/isaaclab_humanoid_ppo.yaml)
+- [isaaclab_cartpole_ppo.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/isaaclab_cartpole_ppo.yaml)
+- [isaaclab_ant_ppo.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/isaaclab_ant_ppo.yaml)
+- [isaaclab_humanoid_ppo.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/isaaclab_humanoid_ppo.yaml)
 
 ## Troubleshooting
 

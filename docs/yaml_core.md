@@ -30,10 +30,10 @@ The declarative build path is:
 
 The key implementation anchors are:
 
-- [builder.py](/home/ubuntu/antd/SRL/srl/registry/builder.py)
-- [config_schema.py](/home/ubuntu/antd/SRL/srl/registry/config_schema.py)
-- [flow_graph.py](/home/ubuntu/antd/SRL/srl/registry/flow_graph.py)
-- [agent_model.py](/home/ubuntu/antd/SRL/srl/networks/agent_model.py)
+- [builder.py](https://github.com/Bigkatoan/SRL/blob/main/srl/registry/builder.py)
+- [config_schema.py](https://github.com/Bigkatoan/SRL/blob/main/srl/registry/config_schema.py)
+- [flow_graph.py](https://github.com/Bigkatoan/SRL/blob/main/srl/registry/flow_graph.py)
+- [agent_model.py](https://github.com/Bigkatoan/SRL/blob/main/srl/networks/agent_model.py)
 
 ## Top-level structure
 
@@ -95,7 +95,7 @@ The current built-in encoder families are:
 - `lstm` for recurrent vector pipelines
 - `text` for character-level text input
 
-Important encoder fields from [config_schema.py](/home/ubuntu/antd/SRL/srl/registry/config_schema.py#L34):
+Important encoder fields from [config_schema.py](https://github.com/Bigkatoan/SRL/blob/main/srl/registry/config_schema.py#L34):
 
 - `name`: unique node identifier used by the flow graph
 - `type`: built-in encoder type or a registry key for a custom encoder
@@ -127,7 +127,7 @@ encoders:
 
 ### Example: visual encoder with auxiliary reconstruction
 
-This pattern already exists in [car_racing_ppo_visual.yaml](/home/ubuntu/antd/SRL/configs/envs/car_racing_ppo_visual.yaml).
+This pattern already exists in [car_racing_ppo_visual.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/car_racing_ppo_visual.yaml).
 
 ```yaml
 encoders:
@@ -144,7 +144,7 @@ encoders:
 
 ### Example: multimodal encoder set
 
-This pattern is close to [sac_multimodal.yaml](/home/ubuntu/antd/SRL/configs/sac_multimodal.yaml).
+This pattern is close to [sac_multimodal.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/sac_multimodal.yaml).
 
 ```yaml
 encoders:
@@ -200,7 +200,7 @@ This is the most reliable setup for multimodal systems because it avoids ambiguo
 
 ### Fallback routing
 
-If `input_name` is omitted, the runtime falls back to compatibility heuristics in [agent_model.py](/home/ubuntu/antd/SRL/srl/networks/agent_model.py):
+If `input_name` is omitted, the runtime falls back to compatibility heuristics in [agent_model.py](https://github.com/Bigkatoan/SRL/blob/main/srl/networks/agent_model.py):
 
 - exact key-to-encoder-name matches
 - single observation to single encoder remapping
@@ -297,9 +297,9 @@ The CLI also consumes a `train:` section from the same YAML file.
 
 Examples already present in the repo include:
 
-- [halfcheetah_sac.yaml](/home/ubuntu/antd/SRL/configs/envs/halfcheetah_sac.yaml)
-- [isaaclab_cartpole_ppo.yaml](/home/ubuntu/antd/SRL/configs/envs/isaaclab_cartpole_ppo.yaml)
-- [car_racing_ppo_visual.yaml](/home/ubuntu/antd/SRL/configs/envs/car_racing_ppo_visual.yaml)
+- [halfcheetah_sac.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/halfcheetah_sac.yaml)
+- [isaaclab_cartpole_ppo.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/isaaclab_cartpole_ppo.yaml)
+- [car_racing_ppo_visual.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/car_racing_ppo_visual.yaml)
 
 Typical fields include:
 
@@ -311,7 +311,7 @@ Typical fields include:
 - `n_steps`, `n_epochs`, `clip_range`
 - `buffer_size`, `start_steps`, `update_after`, `update_every`
 
-These fields are mapped by the training CLI into algorithm config dataclasses in [config.py](/home/ubuntu/antd/SRL/srl/core/config.py).
+These fields are mapped by the training CLI into algorithm config dataclasses in [config.py](https://github.com/Bigkatoan/SRL/blob/main/srl/core/config.py).
 
 ## Current system boundary
 
@@ -345,9 +345,9 @@ This boundary matters. The right way to present SRL is not “no Python required
 Read the docs in this order:
 
 1. This guide for the mental model.
-2. [config_reference.md](/home/ubuntu/antd/SRL/docs/config_reference.md) for exact field-level details.
-3. [quickstart.md](/home/ubuntu/antd/SRL/docs/quickstart.md) for end-to-end usage.
-4. [algorithms.md](/home/ubuntu/antd/SRL/docs/algorithms.md) for the current training surface and algorithm-side expectations.
+2. [config_reference.md](config_reference.md) for exact field-level details.
+3. [quickstart.md](quickstart.md) for end-to-end usage.
+4. [algorithms.md](algorithms.md) for the current training surface and algorithm-side expectations.
 
 ## Recommended config patterns
 
@@ -355,13 +355,13 @@ Read the docs in this order:
 - Prefer explicit `input_name` for multimodal observation dictionaries.
 - Keep actor and critic encoders separate when the task benefits from asymmetric representations.
 - Use `flows` to show composition explicitly instead of encoding assumptions in task scripts.
-- Treat config files under [configs](/home/ubuntu/antd/SRL/configs) as executable examples, not just references.
+-- Treat config files under [configs](https://github.com/Bigkatoan/SRL/tree/main/configs) as executable examples, not just references.
 
 ## Related files
 
-- [config_reference.md](/home/ubuntu/antd/SRL/docs/config_reference.md)
-- [quickstart.md](/home/ubuntu/antd/SRL/docs/quickstart.md)
-- [algorithms.md](/home/ubuntu/antd/SRL/docs/algorithms.md)
-- [halfcheetah_sac.yaml](/home/ubuntu/antd/SRL/configs/envs/halfcheetah_sac.yaml)
-- [car_racing_ppo_visual.yaml](/home/ubuntu/antd/SRL/configs/envs/car_racing_ppo_visual.yaml)
-- [sac_multimodal.yaml](/home/ubuntu/antd/SRL/configs/sac_multimodal.yaml)
+- [config_reference.md](config_reference.md)
+- [quickstart.md](quickstart.md)
+- [algorithms.md](algorithms.md)
+- [halfcheetah_sac.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/halfcheetah_sac.yaml)
+- [car_racing_ppo_visual.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/car_racing_ppo_visual.yaml)
+- [sac_multimodal.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/sac_multimodal.yaml)

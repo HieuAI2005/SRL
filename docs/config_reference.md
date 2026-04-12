@@ -254,7 +254,7 @@ Common fields seen in repo configs:
 - `buffer_size`
 - `start_steps`, `update_after`, `update_every`, `gradient_steps`
 
-See [halfcheetah_sac.yaml](/home/ubuntu/antd/SRL/configs/envs/halfcheetah_sac.yaml), [car_racing_ppo_visual.yaml](/home/ubuntu/antd/SRL/configs/envs/car_racing_ppo_visual.yaml), and [isaaclab_cartpole_ppo.yaml](/home/ubuntu/antd/SRL/configs/envs/isaaclab_cartpole_ppo.yaml) for real examples.
+See [halfcheetah_sac.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/halfcheetah_sac.yaml), [car_racing_ppo_visual.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/car_racing_ppo_visual.yaml), and [isaaclab_cartpole_ppo.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/envs/isaaclab_cartpole_ppo.yaml) for real examples.
 
 ---
 

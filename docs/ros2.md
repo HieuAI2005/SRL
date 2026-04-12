@@ -70,7 +70,7 @@ ros2:
     action_queue_size: 10
 ```
 
-This pattern already exists in [sac_multimodal.yaml](/home/ubuntu/antd/SRL/configs/sac_multimodal.yaml).
+This pattern already exists in [sac_multimodal.yaml](https://github.com/Bigkatoan/SRL/blob/main/configs/sac_multimodal.yaml).
 
 The current preferred key is `ros2.observations`. Legacy `ros2.obs_topics` remains the backward-compatible fallback for older configs.
 

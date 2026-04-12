@@ -6,7 +6,7 @@ SRL exposes three command-line entry points:
 - `srl-benchmark`
 - `srl-visualize`
 
-These commands are declared in [pyproject.toml](/home/ubuntu/antd/SRL/pyproject.toml) and become available after SRL is installed into the active Python environment.
+These commands are declared in [pyproject.toml](https://github.com/Bigkatoan/SRL/blob/main/pyproject.toml) and become available after SRL is installed into the active Python environment.
 
 ## Before you run anything
 
@@ -50,7 +50,7 @@ srl-train --config configs/envs/pendulum_ppo.yaml \
           --device cpu
 ```
 
-Important flag groups from [train.py](/home/ubuntu/antd/SRL/srl/cli/train.py):
+Important flag groups from [train.py](https://github.com/Bigkatoan/SRL/blob/main/srl/cli/train.py):
 
 - Core inputs: `--config`, `--env`, `--algo`, `--steps`, `--n-envs`, `--device`
 - Vectorization: `--vec-mode auto|sync|async`
@@ -105,7 +105,7 @@ srl-benchmark --config configs/envs/halfcheetah_sac.yaml \
               --n-envs 4
 ```
 
-Important flags from [benchmark.py](/home/ubuntu/antd/SRL/srl/cli/benchmark.py):
+Important flags from [benchmark.py](https://github.com/Bigkatoan/SRL/blob/main/srl/cli/benchmark.py):
 
 - Inputs: `--config`, `--env`, `--algo`
 - Budget and scaling: `--steps`, `--n-envs`, `--modes`, `--device`
@@ -185,7 +185,7 @@ srl-visualize --config configs/envs/halfcheetah_sac.yaml \
               --output-dir runs/pipelines
 ```
 
-Important flags from [visualize.py](/home/ubuntu/antd/SRL/srl/cli/visualize.py):
+Important flags from [visualize.py](https://github.com/Bigkatoan/SRL/blob/main/srl/cli/visualize.py):
 
 - Inputs: `--config`, `--env`, `--algo`
 - Output control: `--output-dir`, `--model-output`, `--training-output`
@@ -202,7 +202,7 @@ Training and benchmark runs can produce these operational artifacts under the se
 - `training_curves.png`: exported plots when plotting is enabled
 - checkpoint files under the configured checkpoint directory
 
-For checkpoint details and retention behavior, see [checkpointing.md](/home/ubuntu/antd/SRL/docs/checkpointing.md).
+For checkpoint details and retention behavior, see [checkpointing.md](checkpointing.md).
 
 ## Environment-specific notes
 
