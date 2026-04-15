@@ -492,13 +492,18 @@ def _soft_update(src: nn.Module, tgt: nn.Module, tau: float) -> None:
 
 
 def _unique_encoder_params(model: nn.Module) -> list[nn.Parameter]:
-    """Collect all encoder parameters, de-duplicated by tensor id."""
+    """Collect trainable encoder parameters, de-duplicated by tensor id.
+
+    Only parameters with ``requires_grad=True`` are included so that frozen
+    backbone layers (e.g. a pre-trained ResNet with ``freeze_backbone=True``)
+    do not consume Adam optimizer state or interfere with gradient zeroing.
+    """
     seen: set[int] = set()
     params: list[nn.Parameter] = []
     encoders = getattr(model, "encoders", {})
     for enc in encoders.values():
         for p in enc.parameters():
-            if id(p) not in seen:
+            if p.requires_grad and id(p) not in seen:
                 seen.add(id(p))
                 params.append(p)
     return params

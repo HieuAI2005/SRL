@@ -81,12 +81,29 @@ train:
 
 ## Encoder types
 
-| Type | `input_dim` | Notes |
+**Built-in:**
+
+| Type | Input | Notes |
 |---|---|---|
 | `mlp` | obs dimension | Fully-connected layers |
 | `cnn` | `[C, H, W]` | Convolutional encoder for pixels |
 | `lstm` | obs dimension | Recurrent encoder built from an MLP + LSTM |
 | `text` | vocabulary size | Embedding + LSTM |
+
+**Pre-trained — torchvision** (`pip install srl-rl[vision]`):
+
+| Type | Input | Notes |
+|---|---|---|
+| `resnet` | `[C, H, W]` any size | ResNet-18/34/50/101/152 |
+| `efficientnet` | `[C, H, W]` any size | EfficientNet-B0…B7 |
+| `vit` | `[3, 224, 224]` | Vision Transformer ViT-B/16, ViT-B/32, ViT-L/16 |
+
+**Pre-trained — HuggingFace Hub** (`pip install srl-rl[nlp]`):
+
+| Type | Input | Notes |
+|---|---|---|
+| `huggingface` | `[B, seq_len]` token IDs | Any HF text encoder (BERT, DistilBERT, …) |
+| `hf_vision` | `[C, H, W]` pixels | Any HF vision model (ViT, Swin, ConvNeXt, …) |
 
 ## Encoder fields
 
@@ -109,30 +126,45 @@ train:
 
 ### `input_name`
 
-`input_name` is the preferred way to map observation keys to encoders in multimodal systems.
+Maps an observation dict key to a specific encoder.  **Required whenever the encoder `name` differs from the obs key it should read.**
 
-Example:
+#### Why it matters — dual-encoder pattern
+
+The most common case: two encoders (`actor_state_enc` / `critic_state_enc`) share a single obs key (`state`).  Without `input_name` the router cannot match encoder names to obs keys and raises `KeyError`.
 
 ```yaml
-encoders:
-  - name: state_enc
-    type: mlp
-    input_name: joint_states
-    input_dim: 24
-    latent_dim: 128
+# Env returns: {"state": array}
 
-  - name: image_enc
-    type: cnn
-    input_name: front_camera
-    input_shape: [3, 84, 84]
+encoders:
+  - name: actor_state_enc
+    type: mlp
+    input_name: state       # ← tells the router: read from obs["state"]
+    input_dim: 17
+    latent_dim: 256
+
+  - name: critic_state_enc
+    type: mlp
+    input_name: state       # ← same obs key, separate encoder weights
+    input_dim: 17
     latent_dim: 256
 ```
 
-When `input_name` is set:
+#### Routing priority (highest to lowest)
 
-- the runtime routes by that key first
-- missing keys raise `KeyError`
-- extra keys that remain unused generate a warning
+| Priority | Condition | Behaviour |
+|---|---|---|
+| 1 | `input_name` declared | Use that key explicitly |
+| 2 | encoder `name` == obs key | Direct passthrough |
+| 3 | 1 obs key, 1 encoder | Automatic rename |
+| 4 | count(obs keys) == count(encoders) | Zip by order |
+| 5 | fallback | Pass dict unchanged |
+
+Priorities 3–5 are fragile (order-dependent).  Always set `input_name` when the encoder name does not match the obs key.
+
+#### Behaviour
+
+- Missing `input_name` key in obs → `KeyError`
+- Unused obs keys after explicit routing → `warnings.warn`
 
 ## Layer entries
 

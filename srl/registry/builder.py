@@ -43,7 +43,8 @@ def _build_encoder(cfg: EncoderConfig):
         from srl.networks.encoders.text_encoder import CharCNNTextEncoder
         enc = CharCNNTextEncoder(latent_dim=cfg.latent_dim)
     else:
-        # Try registry
+        # Ensure all @register_encoder decorators have run (pretrained sub-package, etc.)
+        import srl.networks.encoders  # noqa: F401
         enc_cls = EncoderRegistry.get(enc_type)
         enc = enc_cls(cfg)
 
@@ -172,16 +173,15 @@ class ModelBuilder:
                 if enc_cfg.aux_type == "autoencoder":
                     from srl.networks.heads.aux_head import ConvDecoderHead
                     if enc_cfg.input_shape is not None:
-                        in_channels = enc_cfg.input_shape[0]
                         aux_encoders[f"{enc_cfg.name}_aux"] = ConvDecoderHead(
                             latent_dim=enc_cfg.latent_dim,
-                            out_channels=in_channels,
+                            output_shape=tuple(enc_cfg.input_shape),  # [C, H, W]
                         )
                 elif enc_cfg.aux_type in ("contrastive", "byol"):
                     from srl.networks.heads.aux_head import ProjectionHead
                     aux_encoders[f"{enc_cfg.name}_aux"] = ProjectionHead(
                         input_dim=enc_cfg.latent_dim,
-                        proj_dim=enc_cfg.aux_latent_dim,
+                        proj_dim=enc_cfg.aux_latent_dim or 128,
                     )
 
         # 5. Build and return AgentModel

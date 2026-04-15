@@ -8,6 +8,7 @@ algo: sac
 
 encoders:
   - name: actor_state_enc
+    input_name: state
     type: mlp
     input_dim: 10
     latent_dim: 128
@@ -15,6 +16,7 @@ encoders:
       - {out_features: 128, activation: relu, norm: layer_norm}
       - {out_features: 128, activation: relu, norm: layer_norm}
   - name: critic_state_enc
+    input_name: state
     type: mlp
     input_dim: 10
     latent_dim: 128

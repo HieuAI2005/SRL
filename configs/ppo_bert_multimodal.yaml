@@ -1,0 +1,46 @@
+# PPO with a frozen DistilBERT text encoder + CNN visual encoder
+# Demonstrates multimodal fusion: text obs + image obs → shared actor/critic
+# Requires: pip install srl-rl[vision,nlp]
+
+encoders:
+  - name: text_enc
+    type: huggingface
+    input_dim: 64               # max_length (seq_len of token IDs)
+    latent_dim: 128
+    model_name: distilbert-base-uncased   # any HuggingFace encoder-only model
+    pooling: cls                          # cls | mean
+    freeze_backbone: true                 # strongly recommended for RL
+
+  - name: visual_enc
+    type: cnn
+    input_shape: [3, 84, 84]
+    latent_dim: 256
+    layers:
+      - [32, 8, 4, relu]
+      - [64, 4, 2, relu]
+      - [64, 3, 1, relu]
+
+flows:
+  - "text_enc   -> actor"
+  - "visual_enc -> actor"
+  - "text_enc   -> critic"
+  - "visual_enc -> critic"
+
+actor:
+  name: actor
+  type: gaussian
+  action_dim: 4
+  layers: [{out_features: 256, activation: relu}]
+
+critic:
+  name: critic
+  type: value
+  layers: [{out_features: 256, activation: relu}]
+
+losses:
+  - name: policy
+    weight: 1.0
+  - name: value
+    weight: 0.5
+  - name: entropy
+    weight: 0.01

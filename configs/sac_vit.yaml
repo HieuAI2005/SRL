@@ -1,0 +1,39 @@
+# SAC with a partially-frozen ViT-B/16 visual encoder
+# Requires: pip install srl-rl[vision]
+
+encoders:
+  - name: visual_enc
+    type: vit
+    input_shape: [3, 224, 224]
+    latent_dim: 256
+    model_variant: vit_b_16       # vit_b_16 | vit_b_32 | vit_l_16 | vit_l_32
+    pretrained: true
+    freeze_backbone: true
+    freeze_layers: 9              # freeze first 9 of 12 transformer blocks
+    normalize_input: true
+    aux_type: contrastive         # optional: contrastive SSL auxiliary loss
+    aux_latent_dim: 128
+
+flows:
+  - "visual_enc -> actor"
+  - "visual_enc -> critic"
+
+actor:
+  name: actor
+  type: squashed_gaussian
+  action_dim: 6
+  layers: [{out_features: 256, activation: relu}]
+
+critic:
+  name: critic
+  type: twin_q
+  action_dim: 6
+  layers: [{out_features: 256, activation: relu}]
+
+losses:
+  - name: sac_actor
+    weight: 1.0
+  - name: sac_critic
+    weight: 1.0
+  - name: sac_alpha
+    weight: 1.0

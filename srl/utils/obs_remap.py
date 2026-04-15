@@ -37,12 +37,18 @@ def apply_obs_remap(
         if input_name and enc_name in encoder_names
     }
     for enc_name, input_name in named_encoders.items():
-        if input_name not in obs_dict:
+        if enc_name in obs_dict:
+            # Already remapped (obs dict was pre-processed before reaching here).
+            # Use the encoder-name key directly — makes apply_obs_remap idempotent.
+            remapped[enc_name] = obs_dict[enc_name]
+            used_obs_keys.add(enc_name)
+        elif input_name in obs_dict:
+            remapped[enc_name] = obs_dict[input_name]
+            used_obs_keys.add(input_name)
+        else:
             raise KeyError(
                 f"Missing observation key '{input_name}' required by encoder '{enc_name}'."
             )
-        remapped[enc_name] = obs_dict[input_name]
-        used_obs_keys.add(input_name)
 
     unnamed_encoders = [name for name in encoder_names if name not in remapped]
     remaining_obs = {k: v for k, v in obs_dict.items() if k not in used_obs_keys}

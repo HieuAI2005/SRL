@@ -36,7 +36,7 @@ pip install -e ".[dev]"
 # MuJoCo physics environments
 pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[mujoco]"
 
-# Gymnasium Box2D
+# Gymnasium Box2D (CarRacing, LunarLander, BipedalWalker)
 pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[box2d]"
 
 # gymnasium-robotics (Fetch, AntMaze, …)
@@ -44,6 +44,12 @@ pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[robotics]"
 
 # racecar_gym (Python 3.10 recommended)
 pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[racecar]"
+
+# Pre-trained vision encoders: ResNet, EfficientNet, ViT (torchvision)
+pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[vision]"
+
+# Pre-trained language/vision encoders from HuggingFace Hub
+pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[nlp]"
 
 # Everything at once
 pip install "git+https://github.com/Bigkatoan/SRL.git#egg=srl-rl[all]"

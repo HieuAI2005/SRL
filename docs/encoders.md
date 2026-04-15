@@ -9,15 +9,28 @@ Encoder ở lớp giới hạn giữa môi trường và các head chính — ch
 
 ## 2. Khi nào dùng loại encoder nào
 
-- mlp: dữ liệu vector/low-dim (state). Nhẹ, nhanh.
-- cnn: ảnh (vision). Tránh quá sâu nếu dùng realtime/Isaac Lab.
-- lstm: chuỗi/độ trễ/stacked frames với phụ thuộc thời gian.
-- text: input kí tự hoặc embedding cho ngôn ngữ.
+**Built-in:**
+
+- `mlp`: dữ liệu vector/low-dim (state). Nhẹ, nhanh.
+- `cnn`: ảnh pixel tuỳ chỉnh. Tránh quá sâu nếu dùng realtime/Isaac Lab.
+- `lstm`: chuỗi/độ trễ/stacked frames với phụ thuộc thời gian.
+- `text`: input kí tự hoặc embedding cho ngôn ngữ.
+
+**Pre-trained (torchvision — `pip install srl-rl[vision]`):**
+
+- `resnet`: ResNet-18/34/50/101/152 — transfer từ ImageNet, mọi kích thước input.
+- `efficientnet`: EfficientNet-B0…B7 — nhẹ hơn ResNet, phù hợp edge/robot thực.
+- `vit`: Vision Transformer ViT-B/16, ViT-B/32, ViT-L/16 — yêu cầu 224×224.
+
+**Pre-trained (HuggingFace — `pip install srl-rl[nlp]`):**
+
+- `huggingface`: bất kỳ text/language model (BERT, DistilBERT, RoBERTa, …) — NLP-RL, language-conditioned tasks.
+- `hf_vision`: bất kỳ vision model từ HF Hub (ViT, Swin, ConvNeXt, DeiT, …) — nhiều architecture hơn `vit`, cần internet lần đầu.
 
 ## 3. Các trường cấu hình quan trọng (schema)
 
 - `name` — id của encoder trong `flows`
-- `type` — `mlp`, `cnn`, `lstm`, `text`, hoặc key registry
+- `type` — `mlp`, `cnn`, `lstm`, `text`, `resnet`, `efficientnet`, `vit`, `huggingface`, `hf_vision`, hoặc custom registry key
 - `input_name` — tên key trong observation dict (khuyến nghị luôn khai báo)
 - `input_dim` / `input_shape` — kích thước input
 - `latent_dim` — kích thước output latent
@@ -123,16 +136,6 @@ Tham khảo tài liệu NVIDIA Isaac/Isaac Sim khi làm tích hợp môi trườ
 
 ## 10. Liên kết nhanh
 
-
-
-Nếu bạn đồng ý, tôi sẽ:
-
-## Ví dụ và hướng dẫn thêm
-
-Xem các ví dụ cấu hình và các bước kiểm thử nhanh tại: [Examples: encoder examples](examples/encoder_examples.md)
-
-Nếu bạn muốn tôi triển khai thêm, tôi có thể:
-- mở rộng các cấu hình ví dụ thành file YAML đầy đủ trong `configs/examples/`
-- thêm hướng dẫn kiểm thử CI/smoke tests
-- tổ chức lại nav theo mẫu NVIDIA (Architecture → Encoders → Deployment)
-Bạn muốn tôi triển khai tiếp phần nào trước?
+- Chi tiết YAML cho từng loại encoder: [yaml/encoders.md](yaml/encoders.md)
+- Ví dụ cấu hình và smoke tests: [examples/encoder_examples.md](examples/encoder_examples.md)
+- Schema đầy đủ: [srl/registry/config_schema.py](https://github.com/Bigkatoan/SRL/blob/main/srl/registry/config_schema.py)

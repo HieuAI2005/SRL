@@ -1,0 +1,43 @@
+# PPO with a frozen ResNet-50 visual encoder + small MLP state encoder
+# Requires: pip install srl-rl[vision]
+
+encoders:
+  - name: visual_enc
+    type: resnet
+    input_shape: [3, 224, 224]
+    latent_dim: 256
+    model_variant: resnet50       # resnet18 | resnet34 | resnet50 | resnet101
+    pretrained: true              # true | false | "IMAGENET1K_V1"
+    freeze_backbone: true         # freeze all ResNet weights
+    normalize_input: true         # ImageNet mean/std normalisation
+
+  - name: state_enc
+    type: mlp
+    input_dim: 12
+    latent_dim: 64
+    layers: [128, 64]
+
+flows:
+  - "visual_enc -> actor"
+  - "state_enc  -> actor"
+  - "visual_enc -> critic"
+  - "state_enc  -> critic"
+
+actor:
+  name: actor
+  type: gaussian
+  action_dim: 6
+  layers: [{out_features: 256, activation: relu}]
+
+critic:
+  name: critic
+  type: value
+  layers: [{out_features: 256, activation: relu}]
+
+losses:
+  - name: policy
+    weight: 1.0
+  - name: value
+    weight: 0.5
+  - name: entropy
+    weight: 0.01

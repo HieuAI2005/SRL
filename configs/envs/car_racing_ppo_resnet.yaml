@@ -1,0 +1,58 @@
+# PPO on CarRacing-v3 with frozen ResNet-18 visual encoder
+# Demonstrates pre-trained backbone in SRL training pipeline.
+# Requires: pip install srl-rl[vision]
+#
+# Usage:
+#   srl-train --config configs/envs/car_racing_ppo_resnet.yaml \
+#             --env CarRacing-v3 --algo ppo --steps 50000 --device cpu
+
+env_id: "CarRacing-v3"
+env_type: "flat"
+
+algo: ppo
+
+encoders:
+  - name: visual_enc
+    type: resnet
+    input_shape: [3, 96, 96]    # CHW after GymnasiumWrapper transpose
+    latent_dim: 128
+    model_variant: resnet18
+    pretrained: false             # no download needed for smoke test; set true for real training
+    freeze_backbone: false        # fine-tune full backbone (for real training set true + pretrained: true)
+    normalize_input: true
+
+flows:
+  - "visual_enc -> actor"
+  - "visual_enc -> critic"
+
+actor:
+  name: actor
+  type: gaussian
+  action_dim: 3
+  layers:
+    - {out_features: 256, activation: relu}
+
+critic:
+  name: critic
+  type: value
+  layers:
+    - {out_features: 256, activation: relu}
+
+losses:
+  - {name: policy,  weight: 1.0}
+  - {name: value,   weight: 0.5}
+  - {name: entropy, weight: 0.01}
+
+train:
+  total_steps: 500_000
+  n_envs: 4
+  n_steps: 512
+  batch_size: 128
+  n_epochs: 4
+  lr: 3e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  entropy_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5

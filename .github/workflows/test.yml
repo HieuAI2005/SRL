@@ -31,4 +31,9 @@ jobs:
 
       - name: Run unit tests
         run: |
-          pytest tests/test_obs_remap.py tests/test_ros2_config.py -q
+          pytest \
+            tests/test_obs_remap.py \
+            tests/test_ros2_config.py \
+            tests/test_builder.py \
+            tests/test_pretrained_encoders.py \
+            -q

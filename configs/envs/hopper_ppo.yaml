@@ -8,6 +8,7 @@ algo: ppo
 
 encoders:
   - name: actor_state_enc
+    input_name: state
     type: mlp
     input_dim: 11
     latent_dim: 256
@@ -15,6 +16,7 @@ encoders:
       - {out_features: 256, activation: tanh, norm: none}
       - {out_features: 256, activation: tanh, norm: none}
   - name: critic_state_enc
+    input_name: state
     type: mlp
     input_dim: 11
     latent_dim: 256

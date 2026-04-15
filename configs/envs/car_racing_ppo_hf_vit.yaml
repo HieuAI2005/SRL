@@ -1,0 +1,63 @@
+# PPO on CarRacing-v3 with HuggingFace ViT visual encoder
+# Demonstrates loading any HF vision model (ViT, Swin, ConvNeXt, …) from Hub.
+# Requires: pip install srl-rl[nlp]  (installs transformers)
+#           pip install swig "gymnasium[box2d]"
+#
+# NOTE: Most HF vision models require 224x224 input.
+#       CarRacing-v3 native obs is 96x96, so this config uses a custom env
+#       or a resize wrapper. For a quick test without resize, use
+#       car_racing_ppo_resnet.yaml (ResNet handles any resolution).
+#
+# Usage:
+#   srl-train --config configs/envs/car_racing_ppo_hf_vit.yaml \
+#             --env CarRacing-v3 --algo ppo --steps 50000 --device cpu
+
+env_id: "CarRacing-v3"
+env_type: "flat"
+
+algo: ppo
+
+encoders:
+  - name: visual_enc
+    type: hf_vision
+    input_shape: [3, 224, 224]    # HF ViT requires 224x224
+    latent_dim: 128
+    model_name: google/vit-base-patch16-224
+    freeze_backbone: true          # strongly recommended — ViT has 86M params
+    normalize_input: true
+
+flows:
+  - "visual_enc -> actor"
+  - "visual_enc -> critic"
+
+actor:
+  name: actor
+  type: gaussian
+  action_dim: 3
+  layers:
+    - {out_features: 256, activation: relu}
+
+critic:
+  name: critic
+  type: value
+  layers:
+    - {out_features: 256, activation: relu}
+
+losses:
+  - {name: policy,  weight: 1.0}
+  - {name: value,   weight: 0.5}
+  - {name: entropy, weight: 0.01}
+
+train:
+  total_steps: 500_000
+  n_envs: 4
+  n_steps: 512
+  batch_size: 128
+  n_epochs: 4
+  lr: 3e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  entropy_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5

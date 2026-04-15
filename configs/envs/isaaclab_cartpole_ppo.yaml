@@ -9,6 +9,7 @@ algo: ppo
 
 encoders:
   - name: actor_state_enc
+    input_name: state
     type: mlp
     input_dim: 4
     latent_dim: 64
@@ -16,6 +17,7 @@ encoders:
       - {out_features: 64, activation: elu, norm: none}
       - {out_features: 64, activation: elu, norm: none}
   - name: critic_state_enc
+    input_name: state
     type: mlp
     input_dim: 4
     latent_dim: 64

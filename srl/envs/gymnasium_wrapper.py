@@ -31,9 +31,19 @@ class GymnasiumWrapper(gym.Wrapper):
 
     def reset(self, **kwargs) -> tuple[dict[str, np.ndarray], dict]:
         obs, info = self.env.reset(**kwargs)
-        return {self.obs_key: np.asarray(obs)}, info
+        return {self.obs_key: self._process_obs(np.asarray(obs))}, info
 
     def step(self, action: np.ndarray):
         obs, reward, terminated, truncated, info = self.env.step(action)
         done = terminated or truncated
-        return {self.obs_key: np.asarray(obs)}, float(reward), done, truncated, info
+        return {self.obs_key: self._process_obs(np.asarray(obs))}, float(reward), done, truncated, info
+
+    def _process_obs(self, obs: np.ndarray) -> np.ndarray:
+        """Transpose HWC image observations to CHW for SRL's CNN/visual encoders.
+
+        Detection: 3-D array whose last axis is 1, 3, or 4 (channels) and whose
+        spatial dimensions are larger — matches typical (H, W, C) pixel obs.
+        """
+        if obs.ndim == 3 and obs.shape[-1] in (1, 3, 4) and obs.shape[-1] < obs.shape[0]:
+            return obs.transpose(2, 0, 1)   # H W C → C H W
+        return obs

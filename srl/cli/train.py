@@ -626,7 +626,10 @@ def _obs_to_tensors(obs_dict: dict, device, *, force_batch: bool) -> dict:
     tensor_obs = {}
     for key, value in obs_dict.items():
         arr = np.asarray(value)
-        if force_batch and (arr.ndim == 0 or not (arr.ndim > 1 and arr.shape[0] >= 1)):
+        if force_batch:
+            # Always prepend a batch dimension for single-env evaluation.
+            # The old guard `arr.ndim > 1 and arr.shape[0] >= 1` incorrectly
+            # skipped 3-D pixel arrays (C, H, W), causing shape mismatches.
             arr = np.expand_dims(arr, axis=0)
         tensor_obs[key] = torch.from_numpy(arr).float().to(device)
     return tensor_obs
